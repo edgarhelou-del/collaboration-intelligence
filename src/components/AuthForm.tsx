@@ -11,12 +11,20 @@ export function useFormSubmit(endpoint: string, onSuccess: (data: any) => void) 
   async function submit(payload: Record<string, unknown>) {
     setError(null);
     setLoading(true);
+    let res: Response;
     try {
-      const res = await fetch(endpoint, {
+      res = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
+    } catch {
+      setError("No pudimos conectar con el servidor. Revisa tu conexión e intenta de nuevo.");
+      setLoading(false);
+      return;
+    }
+
+    try {
       const data = await res.json();
       if (!res.ok) {
         setError(data.error ?? "Ocurrió un error inesperado.");
@@ -24,7 +32,11 @@ export function useFormSubmit(endpoint: string, onSuccess: (data: any) => void) 
       }
       onSuccess(data);
     } catch {
-      setError("No pudimos conectar con el servidor. Intenta de nuevo.");
+      setError(
+        res.ok
+          ? "El servidor respondió con datos inesperados. Intenta de nuevo."
+          : `El servidor devolvió un error (${res.status}). Revisa los logs del deploy en Vercel.`
+      );
     } finally {
       setLoading(false);
     }
