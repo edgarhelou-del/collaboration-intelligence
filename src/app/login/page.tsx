@@ -29,7 +29,7 @@ function LoginForm() {
       >
         <ErrorText error={error} />
         <div>
-          <label className="mb-1 block text-sm text-ink/70">Email</label>
+          <label className="mb-1 block text-sm text-paper/70">Email</label>
           <input
             className="input"
             required
@@ -40,7 +40,7 @@ function LoginForm() {
           />
         </div>
         <div>
-          <label className="mb-1 block text-sm text-ink/70">Contraseña</label>
+          <label className="mb-1 block text-sm text-paper/70">Contraseña</label>
           <input
             className="input"
             required
@@ -50,7 +50,7 @@ function LoginForm() {
           />
         </div>
         <div className="flex items-center justify-between text-sm">
-          <label className="flex items-center gap-2 text-ink/70">
+          <label className="flex items-center gap-2 text-paper/70">
             <input
               type="checkbox"
               checked={rememberMe}
@@ -59,16 +59,16 @@ function LoginForm() {
             />
             Recordarme
           </label>
-          <Link href="/forgot-password" className="text-indigo">
+          <Link href="/forgot-password" className="text-gold">
             ¿Olvidaste tu contraseña?
           </Link>
         </div>
         <button type="submit" className="btn-primary w-full" disabled={loading}>
           {loading ? "Entrando…" : "Iniciar sesión"}
         </button>
-        <p className="text-center text-sm text-ink/60">
+        <p className="text-center text-sm text-paper/60">
           ¿No tienes organización?{" "}
-          <Link href="/register" className="text-indigo">
+          <Link href="/register" className="text-gold">
             Créala aquí
           </Link>
         </p>

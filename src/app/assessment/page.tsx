@@ -72,14 +72,14 @@ export default function AssessmentPage() {
   }
 
   if (loading) {
-    return <main className="flex min-h-screen items-center justify-center text-ink/50">Cargando…</main>;
+    return <main className="flex min-h-screen items-center justify-center text-paper/50">Cargando…</main>;
   }
 
   if (!data?.session) {
     return (
       <main className="mx-auto flex min-h-screen max-w-lg flex-col items-center justify-center px-6 text-center">
-        <h1 className="font-serif text-3xl text-ink">Aún no hay un diagnóstico activo</h1>
-        <p className="mt-4 text-ink/60">
+        <h1 className="font-serif text-3xl text-paper">Aún no hay un diagnóstico activo</h1>
+        <p className="mt-4 text-paper/60">
           Cuando el administrador de tu organización lance el diagnóstico, aparecerá aquí.
         </p>
       </main>
@@ -89,9 +89,9 @@ export default function AssessmentPage() {
   if (done) {
     return (
       <main className="mx-auto flex min-h-screen max-w-lg flex-col items-center justify-center px-6 text-center">
-        <p className="mb-4 text-sm font-medium uppercase tracking-widest text-indigo">Listo</p>
-        <h1 className="font-serif text-3xl text-ink">Gracias por tu honestidad.</h1>
-        <p className="mt-4 text-ink/60">
+        <p className="mb-4 text-sm font-medium uppercase tracking-widest text-gold">Listo</p>
+        <h1 className="font-serif text-3xl text-paper">Gracias por tu honestidad.</h1>
+        <p className="mt-4 text-paper/60">
           Esto es una fotografía de la percepción de colaboración de tu organización, no un veredicto.
           Tus respuestas se combinan con las de tus compañeros para proteger tu anonimato.
         </p>
@@ -104,10 +104,10 @@ export default function AssessmentPage() {
   return (
     <main className="mx-auto flex min-h-screen max-w-xl flex-col justify-center px-6 py-16">
       <ProgressBar current={index} total={data.questions.length} />
-      <p className="mt-10 text-xs font-medium uppercase tracking-widest text-indigo">
+      <p className="mt-10 text-xs font-medium uppercase tracking-widest text-gold">
         {currentQuestion.dimensionName}
       </p>
-      <h1 className="mt-3 font-serif text-2xl leading-snug text-ink sm:text-3xl">{currentQuestion.text}</h1>
+      <h1 className="mt-3 font-serif text-2xl leading-snug text-paper sm:text-3xl">{currentQuestion.text}</h1>
 
       <div className="mt-8">
         <LikertScale value={selected} onChange={setSelected} />
@@ -118,7 +118,7 @@ export default function AssessmentPage() {
           type="button"
           onClick={handleBack}
           disabled={index === 0}
-          className="text-sm text-ink/50 hover:text-ink disabled:opacity-0"
+          className="text-sm text-paper/50 hover:text-paper disabled:opacity-0"
         >
           ← Atrás
         </button>
@@ -131,7 +131,7 @@ export default function AssessmentPage() {
           {saving ? "Guardando…" : "Continuar"}
         </button>
       </div>
-      <p className="mt-6 text-center text-xs text-ink/30">
+      <p className="mt-6 text-center text-xs text-paper/30">
         {answeredCount} de {data.questions.length} respondidas · puedes continuar más tarde
       </p>
     </main>

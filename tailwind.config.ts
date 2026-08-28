@@ -5,21 +5,25 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        cream: "#F7F5F0",
-        ink: "#17171F",
-        indigo: {
-          DEFAULT: "#5B5BD6",
-          light: "#EDEDFB",
+        // Dark navy + antique gold, derived from the Cápsulas Kolab
+        // reference card: near-black navy ground, warm paper-white
+        // headlines, muted gold accent, terracotta-rose for alerts.
+        night: "#0A0E1B",
+        panel: "#121729",
+        paper: "#F4EFE3",
+        gold: {
+          DEFAULT: "#C6A144",
+          soft: "#241F10",
         },
-        coral: {
-          DEFAULT: "#FF6B57",
-          light: "#FFE9E5",
+        rose: {
+          DEFAULT: "#DD8B6B",
+          light: "#2A1B15",
         },
-        line: "#E6E3DA",
+        line: "#242B42",
       },
       fontFamily: {
         sans: ["var(--font-inter)", "system-ui", "sans-serif"],
-        serif: ["var(--font-fraunces)", "Georgia", "serif"],
+        serif: ["var(--font-serif)", "Georgia", "serif"],
       },
       borderRadius: {
         xl2: "1.5rem",

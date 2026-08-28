@@ -28,11 +28,11 @@ export default function JoinPage() {
       >
         <ErrorText error={error} />
         <div>
-          <label className="mb-1 block text-sm text-ink/70">Tu nombre</label>
+          <label className="mb-1 block text-sm text-paper/70">Tu nombre</label>
           <input className="input" required value={form.name} onChange={(e) => update("name", e.target.value)} />
         </div>
         <div>
-          <label className="mb-1 block text-sm text-ink/70">Email corporativo</label>
+          <label className="mb-1 block text-sm text-paper/70">Email corporativo</label>
           <input
             className="input"
             required
@@ -43,7 +43,7 @@ export default function JoinPage() {
           />
         </div>
         <div>
-          <label className="mb-1 block text-sm text-ink/70">Contraseña</label>
+          <label className="mb-1 block text-sm text-paper/70">Contraseña</label>
           <input
             className="input"
             required
@@ -54,7 +54,7 @@ export default function JoinPage() {
           />
         </div>
         <div>
-          <label className="mb-1 block text-sm text-ink/70">Confirmar contraseña</label>
+          <label className="mb-1 block text-sm text-paper/70">Confirmar contraseña</label>
           <input
             className="input"
             required
@@ -67,9 +67,9 @@ export default function JoinPage() {
         <button type="submit" className="btn-primary w-full" disabled={loading}>
           {loading ? "Creando cuenta…" : "Unirme"}
         </button>
-        <p className="text-center text-sm text-ink/60">
+        <p className="text-center text-sm text-paper/60">
           ¿Ya tienes cuenta?{" "}
-          <Link href="/login" className="text-indigo">
+          <Link href="/login" className="text-gold">
             Inicia sesión
           </Link>
         </p>

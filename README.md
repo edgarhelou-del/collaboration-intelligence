@@ -46,6 +46,12 @@ Flujo para probarlo de punta a punta:
 - **Email**: forgot-password e invitaciones generan tokens/enlaces pero no
   envían correo real todavía (se loguean en consola) — falta conectar un
   proveedor transaccional.
-- **Identidad visual**: los tokens de `tailwind.config.ts` son un placeholder
-  (crema/índigo/coral, Inter + Fraunces) a la espera de la tarjeta de
-  referencia para adaptarlos.
+- **Identidad visual**: tokens en `tailwind.config.ts` traducidos de la
+  tarjeta de referencia (Cápsulas Kolab) — navy `night`/`panel`, dorado
+  `gold` como acento, terracota `rose` para alertas, texto `paper`. Tipografía
+  Playfair Display (serif, titulares) + Inter (sans, UI/cuerpo). El motivo
+  de nodos conectados (`src/components/NetworkMotif.tsx`) traduce el
+  wireframe geométrico de la tarjeta y refuerza la metáfora del producto
+  (inteligencia fluyendo en red); se usa en landing y pantallas de auth,
+  no en las pantallas funcionales (assessment/dashboard) para no
+  distraer.

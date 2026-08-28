@@ -36,22 +36,22 @@ export default function SettingsPage() {
     }
   }
 
-  if (!data) return <main className="flex min-h-screen items-center justify-center text-ink/50">Cargando…</main>;
+  if (!data) return <main className="flex min-h-screen items-center justify-center text-paper/50">Cargando…</main>;
 
   return (
     <main className="mx-auto max-w-3xl px-6 py-16">
-      <Link href="/dashboard" className="text-sm text-ink/50 hover:text-ink">
+      <Link href="/dashboard" className="text-sm text-paper/50 hover:text-paper">
         ← Dashboard
       </Link>
-      <h1 className="mt-4 font-serif text-3xl text-ink">Configuración de {data.organization.name}</h1>
+      <h1 className="mt-4 font-serif text-3xl text-paper">Configuración de {data.organization.name}</h1>
 
       <div className="card mt-8">
-        <h2 className="font-serif text-xl text-ink">Privacidad</h2>
+        <h2 className="font-serif text-xl text-paper">Privacidad</h2>
         <div className="mt-4 space-y-4 text-sm">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-ink">Mínimo de respuestas para mostrar resultados</p>
-              <p className="text-ink/50">Protege el anonimato individual en los agregados de la organización.</p>
+              <p className="text-paper">Mínimo de respuestas para mostrar resultados</p>
+              <p className="text-paper/50">Protege el anonimato individual en los agregados de la organización.</p>
             </div>
             <input
               type="number"
@@ -63,8 +63,8 @@ export default function SettingsPage() {
           </div>
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-ink">Permitir que cada persona vea su propio resultado</p>
-              <p className="text-ink/50">Nunca se muestran resultados individuales a los administradores.</p>
+              <p className="text-paper">Permitir que cada persona vea su propio resultado</p>
+              <p className="text-paper/50">Nunca se muestran resultados individuales a los administradores.</p>
             </div>
             <input
               type="checkbox"
@@ -78,15 +78,15 @@ export default function SettingsPage() {
       </div>
 
       <div className="card mt-8">
-        <h2 className="font-serif text-xl text-ink">Usuarios ({data.users.length})</h2>
+        <h2 className="font-serif text-xl text-paper">Usuarios ({data.users.length})</h2>
         <ul className="mt-4 divide-y divide-line text-sm">
           {data.users.map((u) => (
             <li key={u.id} className="flex items-center justify-between py-3">
               <div>
-                <p className="text-ink">{u.name}</p>
-                <p className="text-ink/40">{u.email}</p>
+                <p className="text-paper">{u.name}</p>
+                <p className="text-paper/40">{u.email}</p>
               </div>
-              <span className="rounded-full bg-indigo-light px-3 py-1 text-xs text-indigo">
+              <span className="rounded-full bg-gold-soft px-3 py-1 text-xs text-gold">
                 {u.role === "ORG_ADMIN" ? "Admin" : "Participante"}
               </span>
             </li>

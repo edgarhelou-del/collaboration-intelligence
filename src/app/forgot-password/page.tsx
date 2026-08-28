@@ -11,7 +11,7 @@ export default function ForgotPasswordPage() {
   return (
     <AuthShell title="Recuperar contraseña" subtitle="Te enviaremos instrucciones a tu email.">
       {sent ? (
-        <p className="rounded-xl bg-indigo-light px-4 py-3 text-sm text-indigo">
+        <p className="rounded-xl bg-gold-soft px-4 py-3 text-sm text-gold">
           Si el email existe en nuestro sistema, recibirás instrucciones en breve.
         </p>
       ) : (
@@ -23,7 +23,7 @@ export default function ForgotPasswordPage() {
           }}
         >
           <div>
-            <label className="mb-1 block text-sm text-ink/70">Email</label>
+            <label className="mb-1 block text-sm text-paper/70">Email</label>
             <input
               className="input"
               required

@@ -22,13 +22,13 @@ export function LikertScale({
           onClick={() => onChange(n)}
           className={`flex w-full items-center gap-4 rounded-2xl border px-5 py-4 text-left transition ${
             value === n
-              ? "border-indigo bg-indigo-light text-ink"
-              : "border-line bg-white text-ink/80 hover:border-indigo/40"
+              ? "border-gold bg-gold-soft text-paper"
+              : "border-line bg-panel text-paper/80 hover:border-gold/40"
           }`}
         >
           <span
             className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border text-xs ${
-              value === n ? "border-indigo bg-indigo text-white" : "border-line text-ink/40"
+              value === n ? "border-gold bg-gold text-night" : "border-line text-paper/40"
             }`}
           >
             {n}

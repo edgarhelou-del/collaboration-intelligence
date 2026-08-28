@@ -26,7 +26,7 @@ function ResetPasswordForm() {
       >
         <ErrorText error={error} />
         <div>
-          <label className="mb-1 block text-sm text-ink/70">Nueva contraseña</label>
+          <label className="mb-1 block text-sm text-paper/70">Nueva contraseña</label>
           <input
             className="input"
             required
@@ -37,7 +37,7 @@ function ResetPasswordForm() {
           />
         </div>
         <div>
-          <label className="mb-1 block text-sm text-ink/70">Confirmar contraseña</label>
+          <label className="mb-1 block text-sm text-paper/70">Confirmar contraseña</label>
           <input
             className="input"
             required
