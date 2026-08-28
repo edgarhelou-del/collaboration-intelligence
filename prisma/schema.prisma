@@ -1,0 +1,206 @@
+// Nodo — Collaboration Intelligence
+// Data model designed for strict multi-tenant isolation (every tenant-owned
+// row carries organizationId) and for a future analytics/benchmarking layer
+// (Score is materialized per session/dimension so cross-org rollups don't
+// need to touch raw Response rows).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  ORG_ADMIN
+  PARTICIPANT
+}
+
+enum SessionStatus {
+  DRAFT
+  ACTIVE
+  CLOSED
+}
+
+enum ResponseStatus {
+  IN_PROGRESS
+  COMPLETED
+}
+
+/// A tenant. All tenant-owned data hangs off organizationId.
+model Organization {
+  id        String   @id @default(cuid())
+  name      String
+  domain    String   @unique // e.g. "acme.com" — used to bind users to a tenant
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Minimum number of responses required before aggregated results are
+  // shown, to protect individual anonymity (see privacy model).
+  minResponsesForResults Int     @default(5)
+  showIndividualResults  Boolean @default(false)
+
+  users             User[]
+  assessmentSessions AssessmentSession[]
+  invitations       Invitation[]
+
+  @@map("organizations")
+}
+
+model User {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  name         String
+  email        String   @unique
+  passwordHash String
+  role         UserRole @default(PARTICIPANT)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  responses          Response[]
+  passwordResetTokens PasswordResetToken[]
+
+  @@index([organizationId])
+  @@map("users")
+}
+
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token     String   @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+
+  @@map("password_reset_tokens")
+}
+
+model Invitation {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  email          String
+  invitedAt      DateTime     @default(now())
+  acceptedAt     DateTime?
+
+  @@index([organizationId])
+  @@map("invitations")
+}
+
+/// One of the 10 collaboration-intelligence dimensions (Trust, Psychological
+/// Safety, ...). Shared across all organizations/assessments.
+model Dimension {
+  id          String @id @default(cuid())
+  key         String @unique // e.g. "trust"
+  name        String // e.g. "Confianza"
+  description String
+  sortOrder   Int
+
+  questions Question[]
+  scores    Score[]
+
+  @@map("dimensions")
+}
+
+/// A canonical questionnaire definition. Versioned so future revisions of
+/// the 30-question instrument don't invalidate historical scores.
+model Assessment {
+  id        String   @id @default(cuid())
+  name      String
+  version   Int      @default(1)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  questions Question[]
+  sessions  AssessmentSession[]
+
+  @@map("assessments")
+}
+
+model Question {
+  id           String     @id @default(cuid())
+  assessmentId String
+  assessment   Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+  dimensionId  String
+  dimension    Dimension  @relation(fields: [dimensionId], references: [id])
+
+  code           String // e.g. "T1"
+  text           String
+  reverseScored  Boolean @default(false)
+  sortOrder      Int
+
+  responses Response[]
+
+  @@unique([assessmentId, code])
+  @@index([dimensionId])
+  @@map("questions")
+}
+
+/// One "launch" / campaign of an assessment inside an organization. Scores
+/// and participation are always scoped to a session, which is what enables
+/// time-evolution and org-vs-self comparisons later.
+model AssessmentSession {
+  id             String        @id @default(cuid())
+  organizationId String
+  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  assessmentId   String
+  assessment     Assessment    @relation(fields: [assessmentId], references: [id])
+
+  status    SessionStatus @default(ACTIVE)
+  launchedAt DateTime     @default(now())
+  closesAt   DateTime?
+
+  responses Response[]
+  scores    Score[]
+
+  @@index([organizationId])
+  @@map("assessment_sessions")
+}
+
+/// A single participant's answer to a single question within a session.
+/// Raw responses are the sensitive, individually-identifiable layer —
+/// admin-facing surfaces must never read this table directly, only Score.
+model Response {
+  id        String             @id @default(cuid())
+  sessionId String
+  session   AssessmentSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  questionId String
+  question  Question           @relation(fields: [questionId], references: [id])
+
+  value     Int // 1-5, raw Likert value as answered (not reverse-adjusted)
+  status    ResponseStatus @default(COMPLETED)
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+
+  @@unique([sessionId, userId, questionId])
+  @@index([sessionId])
+  @@index([userId])
+  @@map("responses")
+}
+
+/// Materialized, aggregated score. dimensionId = null means "overall".
+/// Always computed from >= minResponsesForResults distinct participants;
+/// this is the only table admin dashboards and future benchmarking read.
+model Score {
+  id          String             @id @default(cuid())
+  sessionId   String
+  session     AssessmentSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  dimensionId String?
+  dimension   Dimension?         @relation(fields: [dimensionId], references: [id])
+
+  value          Float // 0-100
+  responseCount  Int   // distinct participants contributing to this score
+  computedAt     DateTime @default(now())
+
+  @@unique([sessionId, dimensionId])
+  @@index([sessionId])
+  @@map("scores")
+}
