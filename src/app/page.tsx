@@ -22,13 +22,19 @@ export default function LandingPage() {
             confianza, el conocimiento y las decisiones dentro de tu organización.
           </p>
           <div className="mt-10 flex flex-wrap gap-4">
-            <Link href="/register" className="btn-primary">
-              Crear mi organización
-            </Link>
-            <Link href="/login" className="btn-secondary">
+            <Link href="/login" className="btn-primary">
               Iniciar sesión
             </Link>
+            <Link href="/register" className="btn-secondary">
+              Crear organización
+            </Link>
           </div>
+          <p className="mt-6 text-sm text-paper/50">
+            ¿Tu organización ya existe?{" "}
+            <Link href="/join" className="text-gold">
+              Únete a tu equipo
+            </Link>
+          </p>
         </div>
 
         <p className="text-sm uppercase tracking-widest text-paper/30">

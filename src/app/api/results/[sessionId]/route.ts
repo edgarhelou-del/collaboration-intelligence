@@ -35,15 +35,15 @@ export async function GET(_request: Request, { params }: { params: { sessionId: 
     }))
     .sort((a, b) => b.value - a.value);
 
-  const minResponses = session.organization.minResponsesForResults;
-  const belowThreshold = !overall || overall.responseCount < minResponses;
-
-  if (belowThreshold) {
+  // Se elimina el mínimo de respuestas para mostrar resultados: se muestran
+  // en cuanto exista al menos una respuesta agregada. Solo bloqueamos cuando
+  // todavía no hay ningún dato calculado para esta sesión.
+  if (!overall) {
     return NextResponse.json({
       session: { id: session.id, launchedAt: session.launchedAt, status: session.status },
       belowThreshold: true,
-      minResponses,
-      currentResponses: overall?.responseCount ?? 0,
+      minResponses: 1,
+      currentResponses: 0,
     });
   }
 

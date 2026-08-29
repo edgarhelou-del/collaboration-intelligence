@@ -36,10 +36,10 @@ export default function ResultsPage() {
   if (data.belowThreshold) {
     return (
       <main className="mx-auto flex min-h-screen max-w-lg flex-col items-center justify-center px-6 text-center">
-        <h1 className="font-serif text-3xl text-paper">Todavía estamos recopilando datos</h1>
+        <h1 className="font-serif text-3xl text-paper">Todavía no hay respuestas</h1>
         <p className="mt-4 text-paper/60">
-          Para proteger el anonimato, necesitamos al menos {data.minResponses} respuestas completas antes de
-          mostrar resultados agregados. Llevas {data.currentResponses}.
+          En cuanto alguien de tu organización complete el diagnóstico, los resultados agregados
+          aparecerán aquí.
         </p>
         <Link href="/dashboard" className="btn-secondary mt-8">
           Volver al dashboard
