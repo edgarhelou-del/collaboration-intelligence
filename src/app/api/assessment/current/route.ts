@@ -6,13 +6,26 @@ export async function GET() {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "No autorizado." }, { status: 401 });
 
-  const session = await prisma.assessmentSession.findFirst({
+  let session = await prisma.assessmentSession.findFirst({
     where: { organizationId: user.organizationId, status: "ACTIVE" },
     orderBy: { launchedAt: "desc" },
   });
 
+  // Si no hay una sesión activa, la creamos automáticamente para que
+  // cualquier usuario pueda responder el diagnóstico sin depender de que
+  // un administrador la lance primero.
   if (!session) {
-    return NextResponse.json({ session: null });
+    const assessment = await prisma.assessment.findFirst({ where: { isActive: true } });
+    if (!assessment) {
+      return NextResponse.json({ session: null });
+    }
+    session = await prisma.assessmentSession.create({
+      data: {
+        organizationId: user.organizationId,
+        assessmentId: assessment.id,
+        status: "ACTIVE",
+      },
+    });
   }
 
   const questions = await prisma.question.findMany({

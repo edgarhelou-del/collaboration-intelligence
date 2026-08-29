@@ -72,6 +72,12 @@ function LoginForm() {
             Créala aquí
           </Link>
         </p>
+        <p className="text-center text-sm text-paper/60">
+          ¿Te unes a tu equipo?{" "}
+          <Link href="/join" className="text-gold">
+            Regístrate con tu email corporativo
+          </Link>
+        </p>
       </form>
     </AuthShell>
   );
