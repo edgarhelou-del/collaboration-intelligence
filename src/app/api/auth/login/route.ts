@@ -19,26 +19,34 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Email y contraseña son obligatorios." }, { status: 400 });
   }
 
-  const user = await prisma.user.findUnique({ where: { email: email.trim().toLowerCase() } });
-  const genericError = NextResponse.json({ error: "Email o contraseña incorrectos." }, { status: 401 });
+  try {
+    const user = await prisma.user.findUnique({ where: { email: email.trim().toLowerCase() } });
+    const genericError = NextResponse.json({ error: "Email o contraseña incorrectos." }, { status: 401 });
 
-  if (!user) return genericError;
+    if (!user) return genericError;
 
-  const valid = await verifyPassword(password, user.passwordHash);
-  if (!valid) return genericError;
+    const valid = await verifyPassword(password, user.passwordHash);
+    if (!valid) return genericError;
 
-  const token = await createSessionToken(
-    { userId: user.id, organizationId: user.organizationId, role: user.role },
-    !!rememberMe
-  );
+    const token = await createSessionToken(
+      { userId: user.id, organizationId: user.organizationId, role: user.role },
+      !!rememberMe
+    );
 
-  const response = NextResponse.json({ ok: true, role: user.role });
-  response.cookies.set(SESSION_COOKIE, token, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    path: "/",
-    maxAge: rememberMe ? REMEMBER_ME_DURATION_SECONDS : SESSION_DURATION_SECONDS,
-  });
-  return response;
+    const response = NextResponse.json({ ok: true, role: user.role });
+    response.cookies.set(SESSION_COOKIE, token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      path: "/",
+      maxAge: rememberMe ? REMEMBER_ME_DURATION_SECONDS : SESSION_DURATION_SECONDS,
+    });
+    return response;
+  } catch (error) {
+    console.error("[v0] login error:", error);
+    return NextResponse.json(
+      { error: "No pudimos iniciar sesión. Intenta de nuevo en unos segundos." },
+      { status: 500 }
+    );
+  }
 }

@@ -23,43 +23,52 @@ export async function POST(request: NextRequest) {
   }
 
   const domain = emailDomain(email);
-  const organization = await prisma.organization.findUnique({ where: { domain } });
-  if (!organization) {
+
+  try {
+    const organization = await prisma.organization.findUnique({ where: { domain } });
+    if (!organization) {
+      return NextResponse.json(
+        { error: "No encontramos una organización para ese dominio. Pide a tu administrador que la cree primero." },
+        { status: 404 }
+      );
+    }
+
+    const existingUser = await prisma.user.findUnique({ where: { email: email.trim().toLowerCase() } });
+    if (existingUser) {
+      return NextResponse.json({ error: "Ya existe una cuenta con ese email." }, { status: 409 });
+    }
+
+    const passwordHash = await hashPassword(password);
+    const user = await prisma.user.create({
+      data: {
+        organizationId: organization.id,
+        name: name.trim(),
+        email: email.trim().toLowerCase(),
+        passwordHash,
+        role: "PARTICIPANT",
+      },
+    });
+
+    await prisma.invitation.updateMany({
+      where: { organizationId: organization.id, email: user.email, acceptedAt: null },
+      data: { acceptedAt: new Date() },
+    });
+
+    const token = await createSessionToken({ userId: user.id, organizationId: organization.id, role: user.role });
+    const response = NextResponse.json({ ok: true });
+    response.cookies.set(SESSION_COOKIE, token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      path: "/",
+      maxAge: SESSION_DURATION_SECONDS,
+    });
+    return response;
+  } catch (error) {
+    console.error("[v0] join error:", error);
     return NextResponse.json(
-      { error: "No encontramos una organización para ese dominio. Pide a tu administrador que la cree primero." },
-      { status: 404 }
+      { error: "No pudimos completar el registro. Intenta de nuevo en unos segundos." },
+      { status: 500 }
     );
   }
-
-  const existingUser = await prisma.user.findUnique({ where: { email: email.trim().toLowerCase() } });
-  if (existingUser) {
-    return NextResponse.json({ error: "Ya existe una cuenta con ese email." }, { status: 409 });
-  }
-
-  const passwordHash = await hashPassword(password);
-  const user = await prisma.user.create({
-    data: {
-      organizationId: organization.id,
-      name: name.trim(),
-      email: email.trim().toLowerCase(),
-      passwordHash,
-      role: "PARTICIPANT",
-    },
-  });
-
-  await prisma.invitation.updateMany({
-    where: { organizationId: organization.id, email: user.email, acceptedAt: null },
-    data: { acceptedAt: new Date() },
-  });
-
-  const token = await createSessionToken({ userId: user.id, organizationId: organization.id, role: user.role });
-  const response = NextResponse.json({ ok: true });
-  response.cookies.set(SESSION_COOKIE, token, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    path: "/",
-    maxAge: SESSION_DURATION_SECONDS,
-  });
-  return response;
 }
