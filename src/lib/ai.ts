@@ -1,47 +1,43 @@
 import "server-only";
-import Anthropic from "@anthropic-ai/sdk";
+import { generateText as aiGenerateText } from "ai";
 import { env, hasAI } from "./env";
 import { AgentDependencyError } from "./agents/errors";
 
-let client: Anthropic | null = null;
-
-function getClient(): Anthropic {
-  if (!hasAI()) {
-    throw new AgentDependencyError(
-      "ANTHROPIC_API_KEY is not configured. Set it in your environment to enable AI generation."
-    );
-  }
-  if (!client) client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
-  return client;
-}
-
 /**
- * Calls the model and returns raw text. Throws AgentDependencyError on any
- * transport/auth failure so callers can report "research incomplete"
- * instead of inventing a result.
+ * Calls the model through the Vercel AI Gateway and returns raw text.
+ *
+ * Authentication is zero-config on Vercel/v0 (OIDC), so no provider API key is
+ * needed. The model is referenced with a Gateway `provider/model` id (see
+ * AI_MODEL in env). Throws AgentDependencyError on any transport/auth failure
+ * so callers can report "research incomplete" instead of inventing a result.
  */
 export async function generateText(params: {
   system: string;
   prompt: string;
   maxTokens?: number;
 }): Promise<string> {
-  const anthropic = getClient();
+  if (!hasAI()) {
+    throw new AgentDependencyError(
+      "AI generation is not configured. On Vercel/v0 the AI Gateway is zero-config; " +
+        "locally, set AI_GATEWAY_API_KEY to enable AI generation."
+    );
+  }
+
   try {
-    const response = await anthropic.messages.create({
-      model: env.ANTHROPIC_MODEL,
-      max_tokens: params.maxTokens ?? 4096,
+    const { text } = await aiGenerateText({
+      model: env.AI_MODEL,
+      maxOutputTokens: params.maxTokens ?? 4096,
       system: params.system,
-      messages: [{ role: "user", content: params.prompt }],
+      prompt: params.prompt,
     });
-    const block = response.content.find((c) => c.type === "text");
-    if (!block || block.type !== "text") {
+    if (!text || !text.trim()) {
       throw new AgentDependencyError("Model returned no text content.");
     }
-    return block.text;
+    return text;
   } catch (err) {
     if (err instanceof AgentDependencyError) throw err;
     const message = err instanceof Error ? err.message : String(err);
-    throw new AgentDependencyError(`Anthropic API call failed: ${message}`);
+    throw new AgentDependencyError(`AI Gateway call failed: ${message}`);
   }
 }
 
