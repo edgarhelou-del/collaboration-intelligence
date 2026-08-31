@@ -145,12 +145,14 @@ export async function runPainResearcher(agentRunId: string): Promise<{
   }
 
   const warnings: string[] = [];
-  const queries = pickQueries(5);
+  // Target ~10 signals per run: cast a wider net across pain categories and pull
+  // more results per query so the extractor has enough qualifying material.
+  const queries = pickQueries(10);
   const allResults: (SearchResult & { query: string })[] = [];
 
   for (const query of queries) {
     try {
-      const results = await webSearch(query, { maxResults: 6 });
+      const results = await webSearch(query, { maxResults: 8 });
       results.forEach((r) => allResults.push({ ...r, query }));
     } catch (err) {
       warnings.push(`Search failed for "${query}": ${err instanceof Error ? err.message : String(err)}`);
@@ -174,11 +176,11 @@ export async function runPainResearcher(agentRunId: string): Promise<{
     deduped.map((r) => ({ title: r.title, url: r.url, content: r.content.slice(0, 1500), publishedDate: r.publishedDate })),
     null,
     2
-  )}\n\nExtract qualifying signals now.`;
+  )}\n\nExtract qualifying signals now. Aim to return up to 10 distinct, high-quality signals if the snippets support them — but never fabricate or pad: only include signals with a real named person and company, and return fewer (or an empty array) if the material does not qualify.`;
 
   let candidates: Candidate[] = [];
   try {
-    const raw = await generateJSON<unknown[]>({ system: SYSTEM_PROMPT, prompt: batchPrompt, maxTokens: 4096 });
+    const raw = await generateJSON<unknown[]>({ system: SYSTEM_PROMPT, prompt: batchPrompt, maxTokens: 8192 });
     candidates = z.array(CandidateSchema).parse(raw);
   } catch (err) {
     throw new AgentDependencyError(
