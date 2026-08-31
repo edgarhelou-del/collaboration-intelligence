@@ -98,7 +98,7 @@ const CandidateSchema = z.object({
 
 type Candidate = z.infer<typeof CandidateSchema>;
 
-const SYSTEM_PROMPT = `You are the Organizational Pain Researcher for Inteligencia Natural. You are given
+const SYSTEM_PROMPT = `You are the Organizational Pain Researcher for KOLAB. You are given
 snippets of real, publicly available web content (search results). Your job is to extract SIGNALS:
 real people, at real companies, publicly expressing a real professional problem related to human
 collaboration (silos, communication, trust, alignment, knowledge sharing, culture, leadership,

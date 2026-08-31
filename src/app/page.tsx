@@ -37,7 +37,7 @@ export default async function DashboardPage() {
     <div className="px-8 py-8 sm:px-12">
       <header className="flex flex-wrap items-start justify-between gap-6 border-b border-line pb-8">
         <div>
-          <p className="kicker">Inteligencia Natural</p>
+          <p className="kicker">KOLAB</p>
           <h1 className="mt-1 font-serif text-3xl font-semibold text-ink">Collaboration Intelligence Radar</h1>
           <div className="mt-3 flex items-center gap-2 text-xs">
             <span className={`h-2 w-2 rounded-full ${systemReady ? "bg-signal-interesting" : "bg-signal-strong"}`} />
