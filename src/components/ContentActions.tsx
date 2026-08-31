@@ -28,21 +28,21 @@ export default function ContentActions({ item }: { item: ContentItem }) {
   if (editing) {
     return (
       <div className="space-y-3">
-        <Field label="Main idea" value={draft.mainIdea} onChange={(v) => setDraft({ ...draft, mainIdea: v })} />
-        <Field label="Why it matters" value={draft.whyItMatters} onChange={(v) => setDraft({ ...draft, whyItMatters: v })} textarea />
+        <Field label="Idea principal" value={draft.mainIdea} onChange={(v) => setDraft({ ...draft, mainIdea: v })} />
+        <Field label="Por qué importa" value={draft.whyItMatters} onChange={(v) => setDraft({ ...draft, whyItMatters: v })} textarea />
         <Field
-          label="Business implication"
+          label="Implicación de negocio"
           value={draft.businessImplication}
           onChange={(v) => setDraft({ ...draft, businessImplication: v })}
           textarea
         />
-        <Field label="LinkedIn post" value={draft.linkedinPost} onChange={(v) => setDraft({ ...draft, linkedinPost: v })} textarea rows={8} />
+        <Field label="Publicación de LinkedIn" value={draft.linkedinPost} onChange={(v) => setDraft({ ...draft, linkedinPost: v })} textarea rows={8} />
         <div className="flex gap-3">
           <button className="btn-primary" onClick={save} disabled={isPending}>
-            Save
+            Guardar
           </button>
           <button className="btn-secondary" onClick={() => setEditing(false)} disabled={isPending}>
-            Cancel
+            Cancelar
           </button>
         </div>
       </div>
@@ -52,16 +52,16 @@ export default function ContentActions({ item }: { item: ContentItem }) {
   return (
     <div className="flex flex-wrap gap-3">
       <button className="btn-secondary" onClick={() => setEditing(true)}>
-        Edit
+        Editar
       </button>
       <button className="btn-primary" onClick={() => setStatus("APPROVED")} disabled={isPending}>
-        Approve
+        Aprobar
       </button>
       <button className="btn-secondary" onClick={() => setStatus("REJECTED")} disabled={isPending}>
-        Reject
+        Rechazar
       </button>
       <button className="btn-secondary" onClick={() => setStatus("PUBLISHED")} disabled={isPending}>
-        Mark as Published
+        Marcar como Publicado
       </button>
     </div>
   );

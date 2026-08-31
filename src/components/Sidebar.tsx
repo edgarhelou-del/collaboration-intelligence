@@ -5,11 +5,11 @@ import { usePathname } from "next/navigation";
 import { Logo } from "./Logo";
 
 const NAV = [
-  { href: "/", label: "Dashboard" },
-  { href: "/content", label: "Content" },
-  { href: "/signals", label: "Pain Radar" },
-  { href: "/patterns", label: "Emerging Patterns" },
-  { href: "/history", label: "History" },
+  { href: "/", label: "Panel" },
+  { href: "/content", label: "Contenido" },
+  { href: "/signals", label: "Radar de Dolores" },
+  { href: "/patterns", label: "Patrones Emergentes" },
+  { href: "/history", label: "Historial" },
 ];
 
 export default function Sidebar() {
@@ -44,7 +44,7 @@ export default function Sidebar() {
           pathname.startsWith("/settings") ? "bg-ink text-paper" : "text-ink/70 hover:bg-line/40 hover:text-ink"
         }`}
       >
-        Settings
+        Configuración
       </Link>
     </aside>
   );

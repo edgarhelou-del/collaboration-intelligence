@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { getSignalById } from "@/lib/data";
-import { formatDate, titleCase } from "@/lib/format";
+import { formatDate } from "@/lib/format";
+import { painCategoryLabel, evidenceTypeLabel } from "@/lib/labels";
 import ScorePill from "@/components/ScorePill";
 import SignalStatusControl from "@/components/SignalStatusControl";
 
@@ -18,69 +19,69 @@ export default async function SignalDetailPage({ params }: { params: { id: strin
           <h1 className="mt-1 font-serif text-2xl font-semibold text-ink">{signal.personName}</h1>
           <p className="text-sm text-muted">{signal.role}</p>
 
-          <Section title={titleCase(signal.painCategory) + " Pain"}>
+          <Section title={`Dolor: ${painCategoryLabel(signal.painCategory)}`}>
             <p className="text-[15px] leading-relaxed text-ink/90">{signal.painDescription}</p>
           </Section>
 
-          <Section title="Evidence">
+          <Section title="Evidencia">
             <blockquote className="border-l-2 border-line pl-4 text-[15px] italic leading-relaxed text-ink/90">
-              {signal.isParaphrase ? `Paraphrased: ${signal.evidence}` : `"${signal.evidence}"`}
+              {signal.isParaphrase ? `Parafraseado: ${signal.evidence}` : `"${signal.evidence}"`}
             </blockquote>
           </Section>
 
           <div className="mt-6 grid grid-cols-2 gap-6 sm:grid-cols-4">
-            <Field label="Source">
+            <Field label="Fuente">
               <a href={signal.sourceUrl} target="_blank" rel="noreferrer" className="text-accent underline">
                 {signal.sourceName || new URL(signal.sourceUrl).hostname}
               </a>
             </Field>
-            <Field label="Date">{formatDate(signal.sourceDate ?? signal.discoveredAt)}</Field>
-            <Field label="Evidence Type">{signal.evidenceType}</Field>
-            <Field label="Score">
+            <Field label="Fecha">{formatDate(signal.sourceDate ?? signal.discoveredAt)}</Field>
+            <Field label="Tipo de Evidencia">{evidenceTypeLabel(signal.evidenceType)}</Field>
+            <Field label="Puntuación">
               <ScorePill score={signal.overallScore} />
             </Field>
           </div>
 
           {signal.whyItMatters && (
-            <Section title="Why It Matters">
+            <Section title="Por Qué Importa">
               <p className="text-[15px] leading-relaxed text-ink/90">{signal.whyItMatters}</p>
             </Section>
           )}
 
           {signal.underlyingIssue && (
-            <Section title="Potential Underlying Issue">
+            <Section title="Posible Problema Subyacente">
               <p className="text-[15px] leading-relaxed text-ink/90">{signal.underlyingIssue}</p>
             </Section>
           )}
 
           {signal.commercialRelevanceNote && (
-            <Section title="Commercial Relevance">
+            <Section title="Relevancia Comercial">
               <p className="text-[15px] leading-relaxed text-ink/90">{signal.commercialRelevanceNote}</p>
             </Section>
           )}
 
-          <Section title="Score Breakdown">
+          <Section title="Desglose de Puntuación">
             <div className="grid grid-cols-2 gap-4 text-sm sm:grid-cols-5">
-              <Breakdown label="Evidence" value={signal.confidenceScore} max={30} />
-              <Breakdown label="Seniority" value={signal.seniorityScore} max={20} />
-              <Breakdown label="Org Relevance" value={signal.organizationalRelevanceScore} max={20} />
-              <Breakdown label="Recency" value={signal.recencyScore} max={15} />
-              <Breakdown label="Commercial" value={signal.commercialRelevanceScore} max={15} />
+              <Breakdown label="Evidencia" value={signal.confidenceScore} max={30} />
+              <Breakdown label="Nivel jerárquico" value={signal.seniorityScore} max={20} />
+              <Breakdown label="Relevancia org." value={signal.organizationalRelevanceScore} max={20} />
+              <Breakdown label="Actualidad" value={signal.recencyScore} max={15} />
+              <Breakdown label="Comercial" value={signal.commercialRelevanceScore} max={15} />
             </div>
           </Section>
         </article>
 
         <aside>
-          <p className="label mb-3">Curation</p>
+          <p className="label mb-3">Curaduría</p>
           <SignalStatusControl id={signal.id} status={signal.status} />
 
           <div className="mt-8 space-y-2 text-xs text-muted">
-            <p className="label">Details</p>
-            <p>Industry: {signal.industry ?? "—"}</p>
-            <p>Country: {signal.country ?? "—"}</p>
-            <p>Company size: {signal.companySize ?? "—"}</p>
-            <p>Pattern: {signal.patternLabel}</p>
-            <p>Discovered: {formatDate(signal.discoveredAt)}</p>
+            <p className="label">Detalles</p>
+            <p>Industria: {signal.industry ?? "—"}</p>
+            <p>País: {signal.country ?? "—"}</p>
+            <p>Tamaño de empresa: {signal.companySize ?? "—"}</p>
+            <p>Patrón: {signal.patternLabel}</p>
+            <p>Descubierto: {formatDate(signal.discoveredAt)}</p>
           </div>
         </aside>
       </div>

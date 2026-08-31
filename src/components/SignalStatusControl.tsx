@@ -2,6 +2,7 @@
 
 import { useTransition } from "react";
 import { updateSignalStatus } from "@/app/actions";
+import { signalStatusLabel } from "@/lib/labels";
 import type { SignalStatus } from "@prisma/client";
 
 const STATUSES: SignalStatus[] = ["NEW", "INVESTIGATING", "RELEVANT", "CONTACTED", "ARCHIVED"];
@@ -16,7 +17,7 @@ export default function SignalStatusControl({ id, status }: { id: string; status
   return (
     <div className="space-y-4">
       <label className="block">
-        <span className="label mb-1 block">Status</span>
+        <span className="label mb-1 block">Estado</span>
         <select
           value={status}
           disabled={isPending}
@@ -25,23 +26,23 @@ export default function SignalStatusControl({ id, status }: { id: string; status
         >
           {STATUSES.map((s) => (
             <option key={s} value={s}>
-              {s}
+              {signalStatusLabel(s)}
             </option>
           ))}
         </select>
       </label>
       <div className="flex flex-wrap gap-2">
         <button className="btn-secondary" disabled={isPending} onClick={() => set("RELEVANT")}>
-          Save
+          Guardar
         </button>
         <button className="btn-secondary" disabled={isPending} onClick={() => set("INVESTIGATING")}>
-          Investigate
+          Investigar
         </button>
         <button className="btn-secondary" disabled={isPending} onClick={() => set("CONTACTED")}>
-          Mark Contacted
+          Marcar Contactado
         </button>
         <button className="btn-secondary" disabled={isPending} onClick={() => set("ARCHIVED")}>
-          Archive
+          Archivar
         </button>
       </div>
     </div>

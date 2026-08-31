@@ -7,7 +7,7 @@ type Target = "all" | "content" | "pain-research";
 
 export default function RunAgentsButton({
   target = "all",
-  label = "Run Both Agents",
+  label = "Ejecutar Ambos Agentes",
   className = "btn-primary",
 }: {
   target?: Target;
@@ -35,7 +35,7 @@ export default function RunAgentsButton({
           const failed = res.content.status === "FAILED" || res.painResearch.status === "FAILED";
           setIsError(failed);
           setMessage(
-            `Content: ${res.content.summary}${res.content.error ? ` — ${res.content.error}` : ""} · Pain Researcher: ${res.painResearch.summary}${res.painResearch.error ? ` — ${res.painResearch.error}` : ""}`
+            `Contenido: ${res.content.summary}${res.content.error ? ` — ${res.content.error}` : ""} · Investigador de Dolores: ${res.painResearch.summary}${res.painResearch.error ? ` — ${res.painResearch.error}` : ""}`
           );
         }
       } catch (err) {
@@ -48,7 +48,7 @@ export default function RunAgentsButton({
   return (
     <div>
       <button onClick={run} disabled={isPending} className={className}>
-        {isPending ? "Running…" : label}
+        {isPending ? "Ejecutando…" : label}
       </button>
       {message && (
         <p className={`mt-2 max-w-md text-xs ${isError ? "text-accent" : "text-muted"}`}>{message}</p>
