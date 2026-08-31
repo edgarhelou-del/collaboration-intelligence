@@ -5,7 +5,8 @@ import {
   getPatterns,
   getRecentAgentRuns,
 } from "@/lib/data";
-import { hasAI, hasSearch } from "@/lib/env";
+import { hasAI, hasSearch, env } from "@/lib/env";
+import { getAiUsageToday } from "@/lib/usage";
 import { formatDateTime, relativeDay, titleCase } from "@/lib/format";
 import RunAgentsButton from "@/components/RunAgentsButton";
 import Bar from "@/components/Bar";
@@ -15,14 +16,18 @@ import StatusBadge from "@/components/StatusBadge";
 export const dynamic = "force-dynamic";
 
 export default async function DashboardPage() {
-  const [latestContent, signalCounts, patterns, recentRuns] = await Promise.all([
+  const [latestContent, signalCounts, patterns, recentRuns, usage] = await Promise.all([
     getLatestContent(),
     getSignalCounts(),
     getPatterns("frequent"),
     getRecentAgentRuns(12),
+    getAiUsageToday().catch(() => ({ count: 0, limit: env.AI_DAILY_CALL_LIMIT })),
   ]);
 
   const systemReady = hasAI() && hasSearch();
+  const capDisabled = usage.limit === 0;
+  const usagePct = capDisabled ? 0 : Math.min(100, (usage.count / usage.limit) * 100);
+  const usageDepleted = !capDisabled && usage.count >= usage.limit;
   const topPatterns = patterns.slice(0, 6);
   const maxSignalCount = Math.max(1, ...topPatterns.map((p) => p.signalCount));
 
@@ -46,7 +51,32 @@ export default async function DashboardPage() {
             </span>
           </div>
         </div>
-        <RunAgentsButton />
+        <div className="flex flex-col items-stretch gap-3 sm:items-end">
+          <RunAgentsButton />
+          <div className="w-full min-w-[180px] sm:w-52">
+            <div className="flex items-baseline justify-between">
+              <span className="label">AI usage today</span>
+              <span className="font-mono text-xs text-ink">
+                {capDisabled ? `${usage.count} calls` : `${usage.count}/${usage.limit}`}
+              </span>
+            </div>
+            {!capDisabled && (
+              <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-line/40">
+                <div
+                  className={`h-full rounded-full ${usageDepleted ? "bg-signal-strong" : "bg-signal-interesting"}`}
+                  style={{ width: `${usagePct}%` }}
+                />
+              </div>
+            )}
+            <p className="mt-1 text-[11px] leading-tight text-muted">
+              {capDisabled
+                ? "No daily cap set"
+                : usageDepleted
+                  ? "Daily free-tier cap reached — resets 00:00 UTC"
+                  : `${usage.limit - usage.count} calls left today`}
+            </p>
+          </div>
+        </div>
       </header>
 
       <section className="mt-10">
