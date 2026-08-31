@@ -1,7 +1,7 @@
 {
   "crons": [
     {
-      "path": "/api/agents/run-all",
+      "path": "/radar/api/agents/run-all",
       "schedule": "0 8 * * *"
     }
   ]
