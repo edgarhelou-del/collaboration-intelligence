@@ -49,12 +49,29 @@ const QUERY_TOPICS: Record<PainCategory, string> = {
   OTHER: "organizational collaboration problems",
 };
 
+// Templates that steer results toward pages with a NAMED person stating a
+// problem (interviews, opinion pieces, conference talks, earnings/press quotes)
+// rather than generic explainer articles. Avoid rigid quoted phrases, which
+// almost never match real pages and starve the extractor of attributable quotes.
+const QUERY_TEMPLATES = [
+  (role: string, topic: string) => `${role} interview says ${topic}`,
+  (role: string, topic: string) => `${role} on ${topic} "we struggle"`,
+  (_role: string, topic: string) => `executive quote ${topic} challenge`,
+  (role: string, topic: string) => `${role} admits ${topic}`,
+  (_role: string, topic: string) => `leaders describe ${topic} their company`,
+];
+
 function pickQueries(n: number): string[] {
-  const shuffled = [...PAIN_CATEGORIES].sort(() => Math.random() - 0.5).slice(0, n);
-  return shuffled.map((cat) => {
+  // Rotate through all categories (shuffled) so a run spans many pain types.
+  const cats = [...PAIN_CATEGORIES].sort(() => Math.random() - 0.5);
+  const queries: string[] = [];
+  for (let i = 0; i < n; i++) {
+    const cat = cats[i % cats.length];
     const role = ROLE_TERMS[Math.floor(Math.random() * ROLE_TERMS.length)];
-    return `${role} interview quote "${QUERY_TOPICS[cat]}"`;
-  });
+    const template = QUERY_TEMPLATES[i % QUERY_TEMPLATES.length];
+    queries.push(template(role, QUERY_TOPICS[cat]));
+  }
+  return queries;
 }
 
 const CandidateSchema = z.object({
@@ -178,10 +195,16 @@ export async function runPainResearcher(agentRunId: string): Promise<{
     2
   )}\n\nExtract qualifying signals now. Aim to return up to 10 distinct, high-quality signals if the snippets support them — but never fabricate or pad: only include signals with a real named person and company, and return fewer (or an empty array) if the material does not qualify.`;
 
+  console.log(`[v0] painResearcher: queries=${queries.length} rawResults=${allResults.length} deduped=${deduped.length} warnings=${warnings.length}`);
+  console.log(`[v0] painResearcher: sample queries:`, JSON.stringify(queries.slice(0, 3)));
+  console.log(`[v0] painResearcher: sample results:`, JSON.stringify(deduped.slice(0, 3).map((r) => ({ title: r.title, content: r.content.slice(0, 220) }))));
+
   let candidates: Candidate[] = [];
   try {
     const raw = await generateJSON<unknown[]>({ system: SYSTEM_PROMPT, prompt: batchPrompt, maxTokens: 8192 });
+    console.log(`[v0] painResearcher: model returned ${Array.isArray(raw) ? raw.length : "non-array"} raw candidates:`, JSON.stringify(raw).slice(0, 800));
     candidates = z.array(CandidateSchema).parse(raw);
+    console.log(`[v0] painResearcher: ${candidates.length} candidates passed schema validation`);
   } catch (err) {
     throw new AgentDependencyError(
       `Extraction failed: ${err instanceof Error ? err.message : String(err)}`
