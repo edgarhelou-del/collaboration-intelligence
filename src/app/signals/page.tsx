@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { getFilterOptions, getSignals, type SignalFilters } from "@/lib/data";
-import { formatDate } from "@/lib/format";
-import { painCategoryLabel, signalStatusLabel, evidenceTypeLabel } from "@/lib/labels";
+import { formatDate, titleCase } from "@/lib/format";
 import ScorePill from "@/components/ScorePill";
 import RunAgentsButton from "@/components/RunAgentsButton";
 
@@ -42,38 +41,37 @@ export default async function SignalsPage({ searchParams }: { searchParams: Reco
     <div className="px-8 py-8 sm:px-12">
       <header className="flex flex-wrap items-center justify-between gap-4 border-b border-line pb-6">
         <div>
-          <p className="kicker">Investigador de Dolores</p>
-          <h1 className="mt-1 font-serif text-2xl font-semibold text-ink">Radar de Dolores</h1>
+          <p className="kicker">Pain Researcher</p>
+          <h1 className="mt-1 font-serif text-2xl font-semibold text-ink">Pain Radar</h1>
         </div>
-        <RunAgentsButton target="pain-research" label="Ejecutar Investigador de Dolores" className="btn-secondary" />
+        <RunAgentsButton target="pain-research" label="Run Pain Researcher" className="btn-secondary" />
       </header>
 
       <form className="mt-6 flex flex-wrap items-end gap-4 border-b border-line pb-6" method="get">
-        <TextField name="minScore" label="Puntuación mín." defaultValue={searchParams.minScore} type="number" />
-        <SelectField name="industry" label="Industria" options={options.industries} defaultValue={searchParams.industry} />
-        <SelectField name="country" label="País" options={options.countries} defaultValue={searchParams.country} />
-        <SelectField name="role" label="Rol" options={options.roles} defaultValue={searchParams.role} />
+        <TextField name="minScore" label="Min Score" defaultValue={searchParams.minScore} type="number" />
+        <SelectField name="industry" label="Industry" options={options.industries} defaultValue={searchParams.industry} />
+        <SelectField name="country" label="Country" options={options.countries} defaultValue={searchParams.country} />
+        <SelectField name="role" label="Role" options={options.roles} defaultValue={searchParams.role} />
         <SelectField
           name="painCategory"
-          label="Categoría de dolor"
+          label="Pain Category"
           options={PAIN_CATEGORIES}
-          labelFn={painCategoryLabel}
+          labelFn={titleCase}
           defaultValue={searchParams.painCategory}
         />
         <SelectField
           name="evidenceType"
-          label="Evidencia"
+          label="Evidence"
           options={EVIDENCE_TYPES}
-          labelFn={evidenceTypeLabel}
           defaultValue={searchParams.evidenceType}
         />
-        <SelectField name="status" label="Estado" options={STATUSES} labelFn={signalStatusLabel} defaultValue={searchParams.status} />
-        <TextField name="since" label="Desde" defaultValue={searchParams.since} type="date" />
+        <SelectField name="status" label="Status" options={STATUSES} defaultValue={searchParams.status} />
+        <TextField name="since" label="Since" defaultValue={searchParams.since} type="date" />
         <button className="btn-secondary h-[38px]" type="submit">
-          Filtrar
+          Filter
         </button>
         <Link href="/signals" className="text-xs text-muted underline">
-          Limpiar
+          Clear
         </Link>
       </form>
 
@@ -81,14 +79,14 @@ export default async function SignalsPage({ searchParams }: { searchParams: Reco
         <table className="w-full min-w-[900px] border-collapse text-sm">
           <thead>
             <tr className="border-b border-line text-left text-xs font-semibold uppercase tracking-wide text-muted">
-              <th className="py-2 pr-4">Puntuación</th>
-              <th className="py-2 pr-4">Persona</th>
-              <th className="py-2 pr-4">Rol</th>
-              <th className="py-2 pr-4">Empresa</th>
-              <th className="py-2 pr-4">Dolor</th>
-              <th className="py-2 pr-4">Industria</th>
-              <th className="py-2 pr-4">Estado</th>
-              <th className="py-2 pr-4">Fecha</th>
+              <th className="py-2 pr-4">Score</th>
+              <th className="py-2 pr-4">Person</th>
+              <th className="py-2 pr-4">Role</th>
+              <th className="py-2 pr-4">Company</th>
+              <th className="py-2 pr-4">Pain</th>
+              <th className="py-2 pr-4">Industry</th>
+              <th className="py-2 pr-4">Status</th>
+              <th className="py-2 pr-4">Date</th>
             </tr>
           </thead>
           <tbody>
@@ -106,9 +104,9 @@ export default async function SignalsPage({ searchParams }: { searchParams: Reco
                 </td>
                 <td className="py-3 pr-4 text-ink/80">{s.role}</td>
                 <td className="py-3 pr-4 text-ink/80">{s.company_}</td>
-                <td className="py-3 pr-4 text-ink/80">{s.patternLabel || painCategoryLabel(s.painCategory)}</td>
+                <td className="py-3 pr-4 text-ink/80">{s.patternLabel || titleCase(s.painCategory)}</td>
                 <td className="py-3 pr-4 text-ink/80">{s.industry ?? "—"}</td>
-                <td className="py-3 pr-4 text-xs text-muted">{signalStatusLabel(s.status)}</td>
+                <td className="py-3 pr-4 text-xs text-muted">{s.status}</td>
                 <td className="py-3 pr-4 text-ink/80">{formatDate(s.discoveredAt)}</td>
               </tr>
             ))}
@@ -116,7 +114,7 @@ export default async function SignalsPage({ searchParams }: { searchParams: Reco
         </table>
         {signals.length === 0 && (
           <p className="py-10 text-center text-sm text-muted">
-            Aún no hay señales — ejecuta el Investigador de Dolores o ajusta tus filtros.
+            No signals yet — run the Pain Researcher, or adjust your filters.
           </p>
         )}
       </div>
@@ -169,7 +167,7 @@ function SelectField({
         defaultValue={defaultValue ?? ""}
         className="h-[38px] w-40 rounded border border-line bg-panel px-2 text-sm text-ink focus:outline-none focus:ring-1 focus:ring-ink"
       >
-        <option value="">Todos</option>
+        <option value="">All</option>
         {options.map((o) => (
           <option key={o} value={o}>
             {labelFn ? labelFn(o) : o}

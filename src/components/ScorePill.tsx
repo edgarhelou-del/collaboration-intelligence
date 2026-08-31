@@ -1,5 +1,4 @@
 import { classifyScore } from "@/lib/scoring";
-import { scoreClassificationLabel } from "@/lib/labels";
 
 const COLORS: Record<string, string> = {
   Exceptional: "text-signal-exceptional border-signal-exceptional",
@@ -13,7 +12,7 @@ export default function ScorePill({ score }: { score: number }) {
   return (
     <span
       className={`inline-flex items-center gap-1.5 rounded border px-2 py-0.5 font-mono text-xs font-medium ${COLORS[classification]}`}
-      title={scoreClassificationLabel(classification)}
+      title={classification}
     >
       {score}
       <span className="text-[10px] opacity-70">/100</span>

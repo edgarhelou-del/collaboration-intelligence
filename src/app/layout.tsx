@@ -8,14 +8,14 @@ const serif = Source_Serif_4({ subsets: ["latin"], variable: "--font-serif" });
 const mono = IBM_Plex_Mono({ subsets: ["latin"], weight: ["400", "500"], variable: "--font-mono" });
 
 export const metadata: Metadata = {
-  title: "KOLAB — Radar de Inteligencia de Colaboración",
+  title: "KOLAB — Collaboration Intelligence Radar",
   description:
-    "Un radar del estado de la colaboración humana dentro de las organizaciones: señales, patrones e insights, acumulados a lo largo del tiempo.",
+    "A radar of the state of human collaboration inside organizations: signals, patterns and insight, accumulated over time.",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="es" className={`${sans.variable} ${serif.variable} ${mono.variable}`}>
+    <html lang="en" className={`${sans.variable} ${serif.variable} ${mono.variable}`}>
       <body className="min-h-screen font-sans antialiased">
         <div className="mx-auto flex max-w-[1400px]">
           <Sidebar />

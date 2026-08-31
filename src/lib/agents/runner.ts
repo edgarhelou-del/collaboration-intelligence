@@ -16,7 +16,7 @@ export async function runContent(): Promise<AgentRunOutcome> {
   try {
     const { contentId, warnings } = await runContentAgent(run.id);
     const status = warnings.length ? "PARTIAL" : "SUCCESS";
-    const summary = `Se generó 1 pieza de contenido${warnings.length ? ` (${warnings.length} nota${warnings.length > 1 ? "s" : ""})` : ""}.`;
+    const summary = `Generated 1 content item${warnings.length ? ` (${warnings.length} note${warnings.length > 1 ? "s" : ""})` : ""}.`;
     await prisma.agentRun.update({
       where: { id: run.id },
       data: {
@@ -38,8 +38,8 @@ export async function runPainResearch(): Promise<AgentRunOutcome> {
   try {
     const { savedCount, skippedDuplicates, warnings } = await runPainResearcher(run.id);
     const status = warnings.length ? "PARTIAL" : "SUCCESS";
-    const summary = `Se encontr${savedCount === 1 ? "ó" : "aron"} ${savedCount} señal${savedCount === 1 ? "" : "es"} nueva${savedCount === 1 ? "" : "s"}${
-      skippedDuplicates ? ` (${skippedDuplicates} duplicada${skippedDuplicates === 1 ? "" : "s"} omitida${skippedDuplicates === 1 ? "" : "s"})` : ""
+    const summary = `Found ${savedCount} new signal${savedCount === 1 ? "" : "s"}${
+      skippedDuplicates ? ` (${skippedDuplicates} duplicate${skippedDuplicates === 1 ? "" : "s"} skipped)` : ""
     }.`;
     await prisma.agentRun.update({
       where: { id: run.id },
@@ -71,11 +71,11 @@ async function fail(runId: string, err: unknown): Promise<AgentRunOutcome> {
   const reason = err instanceof AgentDependencyError ? err.reason : err instanceof Error ? err.message : String(err);
   await prisma.agentRun.update({
     where: { id: runId },
-    data: { status: "FAILED", finishedAt: new Date(), error: reason, summary: "La ejecución falló." },
+    data: { status: "FAILED", finishedAt: new Date(), error: reason, summary: "Run failed." },
   });
-  return { runId, status: "FAILED", summary: "La ejecución falló.", error: reason };
+  return { runId, status: "FAILED", summary: "Run failed.", error: reason };
 }
 
 function toFailedOutcome(reason: unknown): AgentRunOutcome {
-  return { runId: "", status: "FAILED", summary: "La ejecución no pudo iniciarse.", error: String(reason) };
+  return { runId: "", status: "FAILED", summary: "Run failed to start.", error: String(reason) };
 }
