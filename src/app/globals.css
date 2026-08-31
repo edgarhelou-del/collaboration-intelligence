@@ -3,30 +3,28 @@
 @tailwind utilities;
 
 :root {
-  color-scheme: dark;
+  color-scheme: light;
 }
 
 body {
-  background-color: #0a0e1b;
-  background-image: radial-gradient(ellipse 120% 80% at 85% 15%, rgba(198, 161, 68, 0.08), transparent 60%);
-  color: #f4efe3;
-}
-
-input[type="checkbox"] {
-  accent-color: #c6a144;
+  background-color: #f7f5ef;
+  color: #1a1a16;
 }
 
 @layer components {
   .btn-primary {
-    @apply inline-flex items-center justify-center rounded-full bg-gold px-6 py-3 text-sm font-medium text-night transition hover:bg-gold/90 disabled:opacity-50 disabled:cursor-not-allowed;
+    @apply inline-flex items-center justify-center gap-2 rounded border border-ink bg-ink px-4 py-2 text-xs font-semibold uppercase tracking-wider text-paper transition hover:bg-ink/85 disabled:opacity-40 disabled:cursor-not-allowed;
   }
   .btn-secondary {
-    @apply inline-flex items-center justify-center rounded-full border border-line bg-transparent px-6 py-3 text-sm font-medium text-paper transition hover:bg-paper/5;
+    @apply inline-flex items-center justify-center gap-2 rounded border border-line bg-transparent px-4 py-2 text-xs font-semibold uppercase tracking-wider text-ink transition hover:border-ink disabled:opacity-40 disabled:cursor-not-allowed;
   }
-  .input {
-    @apply w-full rounded-2xl border border-line bg-panel px-4 py-3 text-paper placeholder:text-paper/40 focus:outline-none focus:ring-2 focus:ring-gold;
+  .panel {
+    @apply rounded border border-line bg-panel;
   }
-  .card {
-    @apply rounded-xl2 border border-line bg-panel p-6 sm:p-8;
+  .label {
+    @apply text-[11px] font-semibold uppercase tracking-widest text-muted;
+  }
+  .kicker {
+    @apply text-[11px] font-semibold uppercase tracking-[0.15em] text-muted;
   }
 }

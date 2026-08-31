@@ -1,126 +1,80 @@
-import { prisma } from "@/lib/prisma";
+// Deterministic scoring so the same evidence always yields the same score —
+// the LLM proposes sub-ratings, this module turns them into the 0-100 scale
+// defined by the product spec (evidence 30 / seniority 20 / org relevance 20
+// / recency 15 / commercial 15).
 
-/** Converts a raw 1-5 Likert value to its dimension-scale contribution, applying reverse-scoring. */
-export function adjustedValue(rawValue: number, reverseScored: boolean): number {
-  return reverseScored ? 6 - rawValue : rawValue;
-}
+export type SeniorityLevel = "C_LEVEL" | "VP" | "DIRECTOR" | "MANAGER" | "OTHER";
 
-/** Maps an average 1-5 item score to a 0-100 dimension/overall score. */
-export function toHundredScale(average1to5: number): number {
-  return Math.round(((average1to5 - 1) / 4) * 100 * 10) / 10;
-}
-
-/**
- * Recomputes and persists Score rows (per dimension + overall) for a
- * session, from the raw Response rows. This is the only place raw
- * responses are read for aggregation — admin-facing code should always
- * read from Score, never Response, to keep individual answers private.
- */
-export async function recomputeSessionScores(sessionId: string) {
-  const responses = await prisma.response.findMany({
-    where: { sessionId },
-    include: { question: { include: { dimension: true } } },
-  });
-
-  const byDimension = new Map<string, { name: string; values: number[]; users: Set<string> }>();
-  const overallUsers = new Set<string>();
-  const overallValues: number[] = [];
-
-  for (const r of responses) {
-    const adjusted = adjustedValue(r.value, r.question.reverseScored);
-    overallValues.push(adjusted);
-    overallUsers.add(r.userId);
-
-    const dim = r.question.dimension;
-    if (!byDimension.has(dim.id)) {
-      byDimension.set(dim.id, { name: dim.name, values: [], users: new Set() });
-    }
-    const entry = byDimension.get(dim.id)!;
-    entry.values.push(adjusted);
-    entry.users.add(r.userId);
-  }
-
-  const results: { dimensionId: string | null; value: number; responseCount: number }[] = [];
-
-  if (overallValues.length > 0) {
-    const avg = overallValues.reduce((a, b) => a + b, 0) / overallValues.length;
-    results.push({ dimensionId: null, value: toHundredScale(avg), responseCount: overallUsers.size });
-  }
-
-  for (const [dimensionId, entry] of byDimension) {
-    const avg = entry.values.reduce((a, b) => a + b, 0) / entry.values.length;
-    results.push({ dimensionId, value: toHundredScale(avg), responseCount: entry.users.size });
-  }
-
-  // Postgres unique constraints don't treat NULL as a matchable value, so
-  // the "overall" row (dimensionId = null) can't go through a composite-key
-  // upsert like the per-dimension rows can — find-then-write instead.
-  await prisma.$transaction(async (tx) => {
-    for (const r of results) {
-      const existing = await tx.score.findFirst({ where: { sessionId, dimensionId: r.dimensionId } });
-      if (existing) {
-        await tx.score.update({
-          where: { id: existing.id },
-          data: { value: r.value, responseCount: r.responseCount, computedAt: new Date() },
-        });
-      } else {
-        await tx.score.create({
-          data: { sessionId, dimensionId: r.dimensionId, value: r.value, responseCount: r.responseCount },
-        });
-      }
-    }
-  });
-
-  return results;
-}
-
-export type DimensionInsight = {
-  dimensionId: string;
-  name: string;
-  value: number;
+const SENIORITY_POINTS: Record<SeniorityLevel, number> = {
+  C_LEVEL: 20,
+  VP: 15,
+  DIRECTOR: 10,
+  MANAGER: 6,
+  OTHER: 3,
 };
 
-/** Simple rule-based friction heuristics between pairs of dimension scores. */
-export function detectFrictions(scoresByKey: Record<string, number>): string[] {
-  const frictions: string[] = [];
-
-  if (scoresByKey.autonomy - scoresByKey.decision_making > 20) {
-    frictions.push(
-      "Autonomía alta pero decisiones poco claras: las personas actúan solas pero no siempre saben cómo se coordina lo que deciden."
-    );
-  }
-  if (scoresByKey.trust - scoresByKey.knowledge_sharing > 20) {
-    frictions.push(
-      "Hay confianza interpersonal, pero el conocimiento no se comparte al mismo ritmo: probablemente falten hábitos o espacios, no voluntad."
-    );
-  }
-  if (scoresByKey.psychological_safety - scoresByKey.conversation_quality > 20) {
-    frictions.push(
-      "La gente se siente segura para hablar, pero las conversaciones no siempre convergen en algo útil."
-    );
-  }
-  if (scoresByKey.information_flow < 50 && scoresByKey.cross_functional < 50) {
-    frictions.push(
-      "La colaboración entre áreas se ve limitada por un flujo de información débil: el problema puede ser más estructural que interpersonal."
-    );
-  }
-
-  return frictions;
+export function seniorityScoreFromLevel(level: SeniorityLevel): number {
+  return SENIORITY_POINTS[level] ?? SENIORITY_POINTS.OTHER;
 }
 
-const RECOMMENDATIONS: Record<string, string> = {
-  trust: "Haz visibles los compromisos entre personas y equipos: qué se promete y qué se cumple.",
-  psychological_safety: "Modela vulnerabilidad desde el liderazgo: admitir errores primero abre la puerta a que otros lo hagan.",
-  information_flow: "Mapea dónde se atasca la información: ¿en qué punto deja de moverse?",
-  knowledge_sharing: "Crea un ritual ligero y recurrente para compartir aprendizajes entre equipos.",
-  cross_functional: "Identifica los 2-3 puntos de fricción más frecuentes entre áreas y resuélvelos con las personas correctas en la sala.",
-  conversation_quality: "Revisa el propósito y la duración de tus reuniones recurrentes; menos reuniones, mejor diseñadas.",
-  decision_making: "Haz explícito quién decide qué, y comunica las decisiones a quienes las necesitan, no solo a quienes participaron.",
-  autonomy: "Reduce las aprobaciones innecesarias para decisiones de bajo riesgo.",
-  collective_learning: "Cierra el ciclo de los errores con un cambio concreto y visible, no solo con una conversación.",
-  adaptability: "Normaliza probar y cambiar de rumbo: celebra los ajustes rápidos, no solo los planes cumplidos.",
-};
+export function inferSeniorityLevel(role: string | null | undefined): SeniorityLevel {
+  const r = (role ?? "").toLowerCase();
+  if (/\b(ceo|cfo|coo|cto|chro|cio|cpo|cmo|founder|co-founder|president|chief)\b/.test(r)) return "C_LEVEL";
+  if (/\bvp\b|vice president/.test(r)) return "VP";
+  if (/\bdirector\b|\bhead of\b/.test(r)) return "DIRECTOR";
+  if (/\bmanager\b|\blead\b/.test(r)) return "MANAGER";
+  return "OTHER";
+}
 
-export function recommendationFor(dimensionKey: string): string {
-  return RECOMMENDATIONS[dimensionKey] ?? "Explora esta dimensión con tu equipo en más profundidad.";
+export function evidenceScore(evidenceType: "DIRECT" | "INDIRECT", confidence01: number): number {
+  const base = evidenceType === "DIRECT" ? 30 : 18;
+  return Math.round(base * clamp01(confidence01));
+}
+
+export function recencyScore(sourceDate: Date | null): number {
+  if (!sourceDate) return 4; // unknown date: treat conservatively, not zero
+  const days = (Date.now() - sourceDate.getTime()) / (1000 * 60 * 60 * 24);
+  if (days <= 7) return 15;
+  if (days <= 30) return 12;
+  if (days <= 90) return 8;
+  if (days <= 180) return 4;
+  return 1;
+}
+
+export function organizationalRelevanceScore(relevance01: number): number {
+  return Math.round(20 * clamp01(relevance01));
+}
+
+export function commercialRelevanceScore(relevance01: number): number {
+  return Math.round(15 * clamp01(relevance01));
+}
+
+export function overallScore(parts: {
+  confidenceScore: number;
+  seniorityScore: number;
+  organizationalRelevanceScore: number;
+  recencyScore: number;
+  commercialRelevanceScore: number;
+}): number {
+  const total =
+    parts.confidenceScore +
+    parts.seniorityScore +
+    parts.organizationalRelevanceScore +
+    parts.recencyScore +
+    parts.commercialRelevanceScore;
+  return Math.max(0, Math.min(100, Math.round(total)));
+}
+
+export type ScoreClassification = "Exceptional" | "Strong" | "Interesting" | "Archive";
+
+export function classifyScore(score: number): ScoreClassification {
+  if (score >= 90) return "Exceptional";
+  if (score >= 75) return "Strong";
+  if (score >= 60) return "Interesting";
+  return "Archive";
+}
+
+function clamp01(n: number): number {
+  if (Number.isNaN(n)) return 0;
+  return Math.max(0, Math.min(1, n));
 }
