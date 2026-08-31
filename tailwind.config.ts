@@ -5,28 +5,34 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        // Dark navy + antique gold, derived from the Cápsulas Kolab
-        // reference card: near-black navy ground, warm paper-white
-        // headlines, muted gold accent, terracotta-rose for alerts.
-        night: "#0A0E1B",
-        panel: "#121729",
-        paper: "#F4EFE3",
-        gold: {
-          DEFAULT: "#C6A144",
-          soft: "#241F10",
+        // Editorial intelligence desk: warm paper ground, near-black ink,
+        // a single restrained accent (deep signal-red) used sparingly for
+        // scores and emphasis — never neon, never gradients.
+        paper: "#F7F5EF",
+        panel: "#FFFFFF",
+        ink: "#1A1A16",
+        muted: "#6B6858",
+        line: "#DEDACB",
+        accent: {
+          DEFAULT: "#8A3324", // muted brick/signal red
+          soft: "#F3E4DE",
         },
-        rose: {
-          DEFAULT: "#DD8B6B",
-          light: "#2A1B15",
+        signal: {
+          exceptional: "#8A3324",
+          strong: "#96712B",
+          interesting: "#5B6B4E",
+          archive: "#9C9887",
         },
-        line: "#242B42",
       },
       fontFamily: {
-        sans: ["var(--font-inter)", "system-ui", "sans-serif"],
+        sans: ["var(--font-sans)", "system-ui", "sans-serif"],
         serif: ["var(--font-serif)", "Georgia", "serif"],
+        mono: ["var(--font-mono)", "ui-monospace", "monospace"],
       },
       borderRadius: {
-        xl2: "1.5rem",
+        sm: "2px",
+        DEFAULT: "3px",
+        lg: "4px",
       },
     },
   },

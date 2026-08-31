@@ -1,8 +1,11 @@
-// Nodo — Collaboration Intelligence
-// Data model designed for strict multi-tenant isolation (every tenant-owned
-// row carries organizationId) and for a future analytics/benchmarking layer
-// (Score is materialized per session/dimension so cross-org rollups don't
-// need to touch raw Response rows).
+// Inteligencia Natural — Collaboration Intelligence Radar
+//
+// Two agents accumulate intelligence over time:
+//   - Content Agent writes ContentItem rows.
+//   - Pain Researcher writes Signal rows (backed by Company / Person / Source).
+// Signal rows are periodically re-aggregated into Pattern rows, which is the
+// product's real asset: not the daily content, but the accumulated,
+// evolving read on how collaboration is breaking down across organizations.
 
 generator client {
   provider = "prisma-client-js"
@@ -13,194 +16,271 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-enum UserRole {
-  ORG_ADMIN
-  PARTICIPANT
-}
-
-enum SessionStatus {
-  DRAFT
-  ACTIVE
-  CLOSED
-}
-
-enum ResponseStatus {
-  IN_PROGRESS
-  COMPLETED
-}
-
-/// A tenant. All tenant-owned data hangs off organizationId.
-model Organization {
-  id        String   @id @default(cuid())
-  name      String
-  domain    String   @unique // e.g. "acme.com" — used to bind users to a tenant
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  // Minimum number of responses required before aggregated results are
-  // shown, to protect individual anonymity (see privacy model).
-  minResponsesForResults Int     @default(5)
-  showIndividualResults  Boolean @default(false)
-
-  users             User[]
-  assessmentSessions AssessmentSession[]
-  invitations       Invitation[]
-
-  @@map("organizations")
-}
+// ---------------------------------------------------------------------------
+// Users (auth is out of scope for the MVP; this exists so approvals/curation
+// actions have somewhere to point once login is added).
+// ---------------------------------------------------------------------------
 
 model User {
-  id             String       @id @default(cuid())
-  organizationId String
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-
-  name         String
-  email        String   @unique
-  passwordHash String
-  role         UserRole @default(PARTICIPANT)
-
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String?
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
 
-  responses          Response[]
-  passwordResetTokens PasswordResetToken[]
-
-  @@index([organizationId])
   @@map("users")
 }
 
-model PasswordResetToken {
-  id        String   @id @default(cuid())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  token     String   @unique
-  expiresAt DateTime
-  usedAt    DateTime?
+// ---------------------------------------------------------------------------
+// Agent execution log
+// ---------------------------------------------------------------------------
+
+enum AgentType {
+  CONTENT
+  PAIN_RESEARCH
+}
+
+enum AgentRunStatus {
+  RUNNING
+  SUCCESS
+  FAILED
+  PARTIAL
+}
+
+model AgentRun {
+  id          String         @id @default(cuid())
+  agent       AgentType
+  status      AgentRunStatus @default(RUNNING)
+  startedAt   DateTime       @default(now())
+  finishedAt  DateTime?
+  summary     String? // short human-readable outcome, e.g. "10 new signals"
+  error       String? // populated on FAILED/PARTIAL — never fabricate around this
+  resultCount Int            @default(0)
+  metadata    Json? // free-form: search queries used, tokens spent, etc.
+
+  contentItems ContentItem[]
+  signals      Signal[]
+
+  @@index([agent, startedAt])
+  @@map("agent_runs")
+}
+
+// ---------------------------------------------------------------------------
+// Content Agent output
+// ---------------------------------------------------------------------------
+
+enum ContentStatus {
+  DRAFT
+  APPROVED
+  PUBLISHED
+  REJECTED
+}
+
+model ContentItem {
+  id                 String        @id @default(cuid())
+  agentRunId         String?
+  agentRun           AgentRun?     @relation(fields: [agentRunId], references: [id], onDelete: SetNull)
+
+  mainIdea           String
+  whyItMatters       String
+  evidence           Json // [{ text, kind: FACT|INTERPRETATION|HYPOTHESIS, sourceUrl? }]
+  businessImplication String
+  linkedinPost       String
+  alternativeHooks   Json // string[]
+  sources            Json // [{ title, url, publisher?, date? }]
+
+  status      ContentStatus @default(DRAFT)
+  score       Int           @default(0) // 0-100 editorial quality/insight estimate
+  relatedPatternIds Json?  // string[] of Pattern.id this content drew on
+
   createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  @@map("password_reset_tokens")
+  @@index([status, createdAt])
+  @@map("content_items")
 }
 
-model Invitation {
-  id             String       @id @default(cuid())
-  organizationId String
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  email          String
-  invitedAt      DateTime     @default(now())
-  acceptedAt     DateTime?
+// ---------------------------------------------------------------------------
+// Pain Researcher output
+// ---------------------------------------------------------------------------
 
-  @@index([organizationId])
-  @@map("invitations")
+enum PainCategory {
+  COLLABORATION
+  SILOS
+  COMMUNICATION
+  TRUST
+  ALIGNMENT
+  KNOWLEDGE_SHARING
+  CULTURE
+  LEADERSHIP
+  PSYCHOLOGICAL_SAFETY
+  COORDINATION
+  HUMAN_AI_COLLABORATION
+  OTHER
 }
 
-/// One of the 10 collaboration-intelligence dimensions (Trust, Psychological
-/// Safety, ...). Shared across all organizations/assessments.
-model Dimension {
-  id          String @id @default(cuid())
-  key         String @unique // e.g. "trust"
-  name        String // e.g. "Confianza"
-  description String
-  sortOrder   Int
-
-  questions Question[]
-  scores    Score[]
-
-  @@map("dimensions")
+enum EvidenceType {
+  DIRECT
+  INDIRECT
 }
 
-/// A canonical questionnaire definition. Versioned so future revisions of
-/// the 30-question instrument don't invalidate historical scores.
-model Assessment {
+enum SignalStatus {
+  NEW
+  INVESTIGATING
+  RELEVANT
+  CONTACTED
+  ARCHIVED
+}
+
+enum SourceType {
+  LINKEDIN
+  INTERVIEW
+  PODCAST
+  CONFERENCE_TALK
+  COMPANY_BLOG
+  BUSINESS_PUBLICATION
+  INDUSTRY_PUBLICATION
+  EARNINGS_CALL
+  ANNUAL_REPORT
+  FORUM
+  REDDIT
+  YOUTUBE
+  OTHER
+}
+
+model Company {
+  id         String   @id @default(cuid())
+  name       String
+  industry   String?
+  country    String?
+  size       String? // e.g. "1-50", "51-200", "201-1000", "1000+"
+  createdAt  DateTime @default(now())
+
+  people  Person[]
+  signals Signal[]
+
+  @@unique([name])
+  @@map("companies")
+}
+
+model Person {
   id        String   @id @default(cuid())
   name      String
-  version   Int      @default(1)
-  isActive  Boolean  @default(true)
+  role      String? // job title as stated publicly
+  companyId String?
+  company   Company? @relation(fields: [companyId], references: [id], onDelete: SetNull)
   createdAt DateTime @default(now())
 
-  questions Question[]
-  sessions  AssessmentSession[]
+  signals Signal[]
 
-  @@map("assessments")
+  @@unique([name, companyId])
+  @@map("people")
 }
 
-model Question {
+model Source {
   id           String     @id @default(cuid())
-  assessmentId String
-  assessment   Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
-  dimensionId  String
-  dimension    Dimension  @relation(fields: [dimensionId], references: [id])
+  url          String     @unique
+  title        String?
+  publisherName String?
+  sourceType   SourceType @default(OTHER)
+  publishedAt  DateTime?
+  discoveredAt DateTime   @default(now())
 
-  code           String // e.g. "T1"
-  text           String
-  reverseScored  Boolean @default(false)
-  sortOrder      Int
+  signals Signal[]
 
-  responses Response[]
-
-  @@unique([assessmentId, code])
-  @@index([dimensionId])
-  @@map("questions")
+  @@map("sources")
 }
 
-/// One "launch" / campaign of an assessment inside an organization. Scores
-/// and participation are always scoped to a session, which is what enables
-/// time-evolution and org-vs-self comparisons later.
-model AssessmentSession {
-  id             String        @id @default(cuid())
-  organizationId String
-  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  assessmentId   String
-  assessment     Assessment    @relation(fields: [assessmentId], references: [id])
+model Signal {
+  id         String    @id @default(cuid())
+  agentRunId String?
+  agentRun   AgentRun? @relation(fields: [agentRunId], references: [id], onDelete: SetNull)
 
-  status    SessionStatus @default(ACTIVE)
-  launchedAt DateTime     @default(now())
-  closesAt   DateTime?
+  personId  String?
+  person    Person?  @relation(fields: [personId], references: [id], onDelete: SetNull)
+  companyId String?
+  company   Company? @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  sourceId  String?
+  source    Source?  @relation(fields: [sourceId], references: [id], onDelete: SetNull)
 
-  responses Response[]
-  scores    Score[]
+  // Denormalized copies of person/company/source fields at discovery time —
+  // kept even if the linked row is later merged/edited, so historical
+  // scoring stays reproducible.
+  personName String
+  role       String?
+  company_   String  @map("company_name")
+  industry   String?
+  country    String?
+  companySize String?
 
-  @@index([organizationId])
-  @@map("assessment_sessions")
+  painCategory     PainCategory
+  patternKey       String // short slug grouping signals into an emerging pattern, e.g. "cross-functional-silos"
+  patternLabel     String // human label, e.g. "Cross-functional silos"
+  painDescription  String
+  evidence         String // exact quote (when appropriate) or clearly-labeled paraphrase
+  evidenceType     EvidenceType
+  isParaphrase     Boolean      @default(false)
+
+  sourceUrl  String
+  sourceName String?
+  sourceDate DateTime?
+
+  discoveredAt DateTime @default(now())
+
+  confidenceScore          Int // 0-30 evidence strength
+  seniorityScore           Int // 0-20
+  organizationalRelevanceScore Int // 0-20
+  recencyScore             Int // 0-15
+  commercialRelevanceScore Int // 0-15
+  overallScore             Int // sum, 0-100
+
+  whyItMatters          String?
+  underlyingIssue       String?
+  commercialRelevanceNote String?
+
+  status SignalStatus @default(NEW)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([overallScore])
+  @@index([painCategory])
+  @@index([patternKey])
+  @@index([status])
+  @@index([discoveredAt])
+  @@map("signals")
 }
 
-/// A single participant's answer to a single question within a session.
-/// Raw responses are the sensitive, individually-identifiable layer —
-/// admin-facing surfaces must never read this table directly, only Score.
-model Response {
-  id        String             @id @default(cuid())
-  sessionId String
-  session   AssessmentSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  userId    String
-  user      User               @relation(fields: [userId], references: [id], onDelete: Cascade)
-  questionId String
-  question  Question           @relation(fields: [questionId], references: [id])
+// ---------------------------------------------------------------------------
+// Emerging pattern engine — recomputed after each Pain Researcher run.
+// ---------------------------------------------------------------------------
 
-  value     Int // 1-5, raw Likert value as answered (not reverse-adjusted)
-  status    ResponseStatus @default(COMPLETED)
-  createdAt DateTime       @default(now())
-  updatedAt DateTime       @updatedAt
+model Pattern {
+  id    String @id @default(cuid())
+  key   String @unique // matches Signal.patternKey
+  label String
 
-  @@unique([sessionId, userId, questionId])
-  @@index([sessionId])
-  @@index([userId])
-  @@map("responses")
-}
+  painCategory PainCategory
 
-/// Materialized, aggregated score. dimensionId = null means "overall".
-/// Always computed from >= minResponsesForResults distinct participants;
-/// this is the only table admin dashboards and future benchmarking read.
-model Score {
-  id          String             @id @default(cuid())
-  sessionId   String
-  session     AssessmentSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  dimensionId String?
-  dimension   Dimension?         @relation(fields: [dimensionId], references: [id])
+  signalCount        Int
+  last30Count        Int
+  previous30Count    Int
+  growthRate         Float // (last30 - previous30) / max(previous30, 1)
+  averageScore        Float
 
-  value          Float // 0-100
-  responseCount  Int   // distinct participants contributing to this score
-  computedAt     DateTime @default(now())
+  topIndustries Json // [{ name, count }]
+  topCountries  Json // [{ name, count }]
+  topRoles      Json // [{ name, count }]
 
-  @@unique([sessionId, dimensionId])
-  @@index([sessionId])
-  @@map("scores")
+  representativeSignalIds Json // string[]
+
+  firstAppearance DateTime
+  latestAppearance DateTime
+
+  aiSynthesis      String? // clearly-labeled AI interpretation, regenerated on recompute
+  synthesizedAt    DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("patterns")
 }
