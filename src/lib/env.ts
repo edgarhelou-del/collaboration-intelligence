@@ -10,7 +10,17 @@ export const env = {
   AI_GATEWAY_API_KEY: process.env.AI_GATEWAY_API_KEY ?? "",
   TAVILY_API_KEY: process.env.TAVILY_API_KEY ?? "",
   CRON_SECRET: process.env.CRON_SECRET ?? "",
+  // Hard cap on model calls per UTC day, to stay within the AI Gateway free
+  // tier and never incur charges. Override with AI_DAILY_CALL_LIMIT. Set to 0
+  // to disable the cap (only do this once you've added paid Gateway credits).
+  AI_DAILY_CALL_LIMIT: parsePositiveInt(process.env.AI_DAILY_CALL_LIMIT, 100),
 };
+
+function parsePositiveInt(value: string | undefined, fallback: number): number {
+  if (value === undefined || value.trim() === "") return fallback;
+  const n = Number.parseInt(value, 10);
+  return Number.isFinite(n) && n >= 0 ? n : fallback;
+}
 
 /**
  * AI generation goes through the Vercel AI Gateway, which is zero-config on

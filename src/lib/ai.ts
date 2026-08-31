@@ -2,6 +2,7 @@ import "server-only";
 import { generateText as aiGenerateText } from "ai";
 import { env, hasAI } from "./env";
 import { AgentDependencyError } from "./agents/errors";
+import { reserveAiCall } from "./usage";
 
 /**
  * Calls the model through the Vercel AI Gateway and returns raw text.
@@ -22,6 +23,10 @@ export async function generateText(params: {
         "locally, set AI_GATEWAY_API_KEY to enable AI generation."
     );
   }
+
+  // Enforce the daily budget cap BEFORE spending a model call. Thrown as an
+  // AgentDependencyError so it propagates like any other missing dependency.
+  await reserveAiCall();
 
   try {
     const { text } = await aiGenerateText({

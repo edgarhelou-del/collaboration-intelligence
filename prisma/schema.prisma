@@ -31,6 +31,19 @@ model User {
 }
 
 // ---------------------------------------------------------------------------
+// AI usage meter — one row per UTC day, used to enforce a hard daily cap on
+// model calls so the app never spends beyond the AI Gateway free tier.
+// ---------------------------------------------------------------------------
+
+model AiUsage {
+  day       String   @id // UTC date, "YYYY-MM-DD"
+  count     Int      @default(0) // model calls made that day
+  updatedAt DateTime @updatedAt
+
+  @@map("ai_usage")
+}
+
+// ---------------------------------------------------------------------------
 // Agent execution log
 // ---------------------------------------------------------------------------
 
