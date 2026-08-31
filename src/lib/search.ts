@@ -14,7 +14,10 @@ export type SearchResult = {
  * because it returns clean, LLM-ready snippets rather than raw HTML. Any
  * other provider can be swapped in behind this same function signature.
  */
-export async function webSearch(query: string, opts?: { maxResults?: number }): Promise<SearchResult[]> {
+export async function webSearch(
+  query: string,
+  opts?: { maxResults?: number; includeDomains?: string[] }
+): Promise<SearchResult[]> {
   if (!hasSearch()) {
     throw new AgentDependencyError(
       "TAVILY_API_KEY is not configured. Set it in your environment to enable web research."
@@ -32,6 +35,7 @@ export async function webSearch(query: string, opts?: { maxResults?: number }): 
         search_depth: "advanced",
         max_results: opts?.maxResults ?? 8,
         include_answer: false,
+        ...(opts?.includeDomains?.length ? { include_domains: opts.includeDomains } : {}),
       }),
     });
   } catch (err) {
