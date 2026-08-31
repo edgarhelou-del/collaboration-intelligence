@@ -29,6 +29,10 @@ export async function generateText(params: {
       maxOutputTokens: params.maxTokens ?? 4096,
       system: params.system,
       prompt: params.prompt,
+      // The AI Gateway free tier is rate-limited per minute. The SDK retries
+      // with exponential backoff (~2s, 4s, 8s, 16s, 32s), so 5 retries ride
+      // out a full ~1-minute window instead of failing fast on a burst.
+      maxRetries: 5,
     });
     if (!text || !text.trim()) {
       throw new AgentDependencyError("Model returned no text content.");

@@ -2,7 +2,9 @@ import "server-only";
 
 export const env = {
   // Vercel AI Gateway model id in `provider/model` form. Override with AI_MODEL.
-  AI_MODEL: process.env.AI_MODEL || "anthropic/claude-sonnet-4.5",
+  // Default is a model available on the AI Gateway free tier. Premium models
+  // like anthropic/claude-sonnet-4.5 require paid Gateway credits.
+  AI_MODEL: process.env.AI_MODEL || "openai/gpt-4.1-mini",
   // Optional: only needed for local dev outside Vercel/v0. On Vercel/v0 the
   // AI Gateway authenticates automatically via OIDC, so this stays empty.
   AI_GATEWAY_API_KEY: process.env.AI_GATEWAY_API_KEY ?? "",

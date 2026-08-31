@@ -58,11 +58,13 @@ export async function runPainResearch(): Promise<AgentRunOutcome> {
 }
 
 export async function runBoth(): Promise<{ content: AgentRunOutcome; painResearch: AgentRunOutcome }> {
-  const [content, painResearch] = await Promise.allSettled([runContent(), runPainResearch()]);
-  return {
-    content: content.status === "fulfilled" ? content.value : toFailedOutcome(content.reason),
-    painResearch: painResearch.status === "fulfilled" ? painResearch.value : toFailedOutcome(painResearch.reason),
-  };
+  // Run sequentially rather than in parallel: on the AI Gateway free tier,
+  // firing both agents' model calls at once bursts past the per-minute rate
+  // limit. Sequencing spreads the calls out so each can complete (and lets the
+  // per-call backoff ride out the limit) instead of both failing together.
+  const content = await runContent().catch((reason) => toFailedOutcome(reason));
+  const painResearch = await runPainResearch().catch((reason) => toFailedOutcome(reason));
+  return { content, painResearch };
 }
 
 async function fail(runId: string, err: unknown): Promise<AgentRunOutcome> {
