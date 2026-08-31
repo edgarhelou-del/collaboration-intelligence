@@ -288,10 +288,6 @@ export async function runPainResearcher(agentRunId: string): Promise<{
     2
   )}\n\nExtract qualifying signals now. Aim to return up to 10 distinct, high-quality signals if the snippets support them — but never fabricate or pad: only include signals with a real named person and company, and return fewer (or an empty array) if the material does not qualify.`;
 
-  console.log(`[v0] painResearcher: queries=${queries.length} rawResults=${allResults.length} deduped=${deduped.length} warnings=${warnings.length}`);
-  console.log(`[v0] painResearcher: sample queries:`, JSON.stringify(queries.slice(0, 3)));
-  console.log(`[v0] painResearcher: sample results:`, JSON.stringify(deduped.slice(0, 3).map((r) => ({ title: r.title, content: r.content.slice(0, 220) }))));
-
   const candidates: Candidate[] = [];
   try {
     const raw = await generateJSON<unknown[]>({ system: SYSTEM_PROMPT, prompt: batchPrompt, maxTokens: 8192 });
