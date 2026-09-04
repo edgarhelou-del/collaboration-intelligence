@@ -226,9 +226,16 @@ CRITICAL RULES:
   isParaphrase=true — do not present a paraphrase as a direct quote.
 - If a snippet does not contain a clear, attributable signal, skip it. It is correct to return an
   empty array if nothing in the snippets qualifies.
-- patternKey must be a short kebab-case slug capturing the specific pattern (e.g.
-  "cross-functional-silos", "leadership-alignment-gap", "ai-adoption-friction"), not just the
-  broad category.
+- patternKey groups signals into an evolving pattern, so it must be a STABLE, REUSABLE theme-level
+  kebab-case slug — not a one-off phrase unique to a single signal. Prefer keys that many future
+  signals could also share (e.g. "cross-functional-silos", "leadership-alignment-gap",
+  "ai-adoption-friction", "psychological-safety-gap", "applied-improv-training",
+  "knowledge-hoarding", "hybrid-coordination-friction", "trust-erosion").
+- If an EXISTING PATTERNS list is provided above, and a signal fits one of those themes, you MUST
+  reuse that exact patternKey and patternLabel verbatim so the pattern accumulates. Only invent a new
+  patternKey when the signal represents a genuinely distinct theme not covered by any existing key.
+- Do NOT encode company names, person names, or one-off specifics into patternKey. Two signals about
+  the same underlying theme at different companies must share the same patternKey.
 
 Respond with ONLY a JSON array, no commentary, where each element matches:
 {
@@ -282,7 +289,25 @@ export async function runPainResearcher(agentRunId: string): Promise<{
     return true;
   });
 
-  const batchPrompt = `SEARCH RESULTS TO ANALYZE:\n${JSON.stringify(
+  // Show the model the pattern vocabulary that already exists so it REUSES a
+  // matching key (which grows that pattern over time) instead of coining a fresh
+  // slug for every signal — that is what makes patterns aggregate. It may still
+  // create a new key for a genuinely novel theme, preserving diversity.
+  const existingPatterns = await prisma.pattern.findMany({
+    select: { key: true, label: true, painCategory: true, signalCount: true },
+    orderBy: { signalCount: "desc" },
+    take: 40,
+  });
+  const patternVocab =
+    existingPatterns.length > 0
+      ? `EXISTING PATTERNS (reuse the exact patternKey + patternLabel when a signal fits one of these; only coin a NEW kebab-case key for a genuinely distinct theme):\n${JSON.stringify(
+          existingPatterns.map((p) => ({ patternKey: p.key, patternLabel: p.label, painCategory: p.painCategory })),
+          null,
+          2
+        )}\n\n`
+      : "";
+
+  const batchPrompt = `${patternVocab}SEARCH RESULTS TO ANALYZE:\n${JSON.stringify(
     deduped.map((r) => ({ title: r.title, url: r.url, content: r.content.slice(0, 1500), publishedDate: r.publishedDate })),
     null,
     2
