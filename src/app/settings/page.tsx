@@ -22,7 +22,7 @@ export default async function SettingsPage() {
         <p className="label mb-3">System Status</p>
         <ul className="panel divide-y divide-line">
           <StatusRow label="Database (PostgreSQL)" ok={dbConnected} okText="Connected" badText="Not connected" />
-          <StatusRow label="AI generation (ANTHROPIC_API_KEY)" ok={hasAI()} okText="Configured" badText="Not configured" />
+          <StatusRow label="AI generation (Vercel AI Gateway)" ok={hasAI()} okText="Ready (zero-config)" badText="Unavailable" />
           <StatusRow
             label="Web research (TAVILY_API_KEY)"
             ok={hasSearch()}
@@ -40,8 +40,10 @@ export default async function SettingsPage() {
 
       <section className="mt-8">
         <p className="label mb-3">Model</p>
-        <p className="text-sm text-ink">{env.ANTHROPIC_MODEL}</p>
-        <p className="mt-1 text-xs text-muted">Override with the ANTHROPIC_MODEL environment variable.</p>
+        <p className="text-sm text-ink">{env.AI_MODEL}</p>
+        <p className="mt-1 text-xs text-muted">
+          Served through the Vercel AI Gateway. Override with the AI_MODEL environment variable (provider/model format).
+        </p>
       </section>
 
       <section className="mt-8 pb-16">
