@@ -105,14 +105,26 @@ keynote/
   app.js            motor: render, navegación, visuales SVG/canvas, notas, sync con presenter
   presenter.html     panel de presentador (ventana aparte)
   README.md          este archivo
+  pptx/              versión PowerPoint (.pptx) del mismo keynote — ver pptx/README.md
 ```
+
+## 6. Versión PowerPoint (.pptx)
+
+Si necesitas el archivo de PowerPoint (para editarlo directamente, enviarlo
+por correo, o presentarlo sin navegador), está en
+[`pptx/Bioadaptabilidad_CENIT.pptx`](./pptx/Bioadaptabilidad_CENIT.pptx):
+mismas 40 slides, mismo diseño, notas de speaker nativas en el panel de
+notas de PowerPoint, diagramas construidos con formas editables (no
+imágenes). Se genera a partir de `data.js` — ver
+[`pptx/README.md`](./pptx/README.md) para cómo regenerarlo si editas el
+contenido.
 
 Para editar contenido o notas, solo se toca `data.js` — no hace falta tocar
 `app.js` salvo que quieras un tipo de visual nuevo.
 
 ---
 
-## 6. Tesis, narrativa y guía de entrega
+## 7. Tesis, narrativa y guía de entrega
 
 ### Tesis central
 > No elegimos el cambio que viene. Elegimos qué tan capaces somos de
@@ -177,7 +189,7 @@ para ser explicados — ese tiempo está descontado del promedio.
 
 ---
 
-## 7. Fuentes utilizadas
+## 8. Fuentes utilizadas
 
 **Toyota / incendio de Aisin Seiki (1997):**
 - Nishiguchi, T. & Beaudet, A. (1998). *The Toyota Group and the Aisin Fire.*
@@ -219,7 +231,7 @@ que sobrevive, sino la que mejor se adapta" atribuida popularmente a Darwin
 — es una atribución falsa, ampliamente documentada como mito, y por eso no
 aparece en esta charla.
 
-## 8. Revisión crítica (autoevaluación previa a la entrega)
+## 9. Revisión crítica (autoevaluación previa a la entrega)
 
 - **¿Parece un keynote premium?** Sí — tipografía editorial (Fraunces +
   Inter), paleta por acto, mucho espacio negativo, cero iconos genéricos,

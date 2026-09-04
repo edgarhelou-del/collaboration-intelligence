@@ -1,0 +1,5 @@
+assets/
+*.pdf
+slide-*.jpg
+*-thumbs*.jpg
+deck_dump.md
