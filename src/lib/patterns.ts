@@ -21,6 +21,8 @@ const THEME_RULES: { key: string; label: string; keywords: string[] }[] = [
   { key: "leadership-alignment-gap", label: "Leadership alignment gap", keywords: ["alignment", "aligned", "priorit", "accountab", "shared-goal", "shared-purpose", "kpi", "okr", "direction"] },
   { key: "knowledge-sharing-gaps", label: "Knowledge sharing gaps", keywords: ["knowledge", "hoard", "communities-of-practice", "documentation", "transparency", "information-sharing", "tribal"] },
   { key: "trust-erosion", label: "Trust erosion", keywords: ["trust", "distrust", "credibility", "betray", "psychological-contract"] },
+  { key: "corporate-storytelling", label: "Corporate storytelling", keywords: ["storytelling", "story-telling", "narrative", "story-driven", "business-story", "brand-story"] },
+  { key: "talking-circles-dialogue", label: "Talking circles & dialogue", keywords: ["talking-circle", "listening-circle", "council-circle", "sharing-circle", "word-circle", "circle-practice", "dialogue-circle", "circulo-de-palabra", "circle"] },
   { key: "communication-breakdown", label: "Communication breakdown", keywords: ["communication", "communicate", "written-communication", "meeting", "overcommunicat", "miscommunicat", "messaging"] },
   { key: "culture-transformation", label: "Culture transformation", keywords: ["culture", "cultural", "transformation", "engagement", "disengage", "belonging", "values", "nadella"] },
   { key: "leadership-development", label: "Leadership development", keywords: ["leadership-development", "leadership-education", "coaching", "manager-training", "develop-leaders", "leadership-program"] },

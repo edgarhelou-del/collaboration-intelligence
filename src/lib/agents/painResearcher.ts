@@ -54,6 +54,9 @@ const QUERY_TOPICS: Record<PainCategory, string[]> = {
     "communication breakdown between teams",
     "improving workplace communication experiment",
     "storytelling to improve team communication",
+    "corporate storytelling to align employees",
+    "business storytelling workshop for teams",
+    "leaders using narrative to connect teams",
   ],
   TRUST: [
     "lack of trust between teams leadership",
@@ -76,6 +79,10 @@ const QUERY_TOPICS: Record<PainCategory, string[]> = {
     "applied improv training for teams",
     "experiential learning workshops company culture",
     "team building rituals that changed culture",
+    "talking circles at work team dialogue",
+    "listening circles workplace psychological safety",
+    "council circle practice team meetings",
+    "sharing circle employees open dialogue",
   ],
   LEADERSHIP: [
     "leadership challenges managing distributed teams",
