@@ -1,7 +1,7 @@
 import "server-only";
 import { z } from "zod";
 import { prisma } from "../prisma";
-import { generateJSON } from "../ai";
+import { generateArray } from "../ai";
 import { webSearch, type SearchResult } from "../search";
 import { hasSearch } from "../env";
 import { isDuplicateSignal } from "../dedupe";
@@ -120,7 +120,8 @@ CRITICAL RULES:
   "cross-functional-silos", "leadership-alignment-gap", "ai-adoption-friction"), not just the
   broad category.
 
-Respond with ONLY a JSON array, no commentary, where each element matches:
+Return an object of the form { "items": [ ... ] }, where "items" is an array of qualifying
+signals (it may be empty). Each element must match:
 {
   "personName": string, "role": string, "seniorityLevel": "C_LEVEL"|"VP"|"DIRECTOR"|"MANAGER"|"OTHER",
   "company": string, "industry": string|null, "country": string|null, "companySize": string|null,
@@ -178,8 +179,12 @@ export async function runPainResearcher(agentRunId: string): Promise<{
 
   let candidates: Candidate[] = [];
   try {
-    const raw = await generateJSON<unknown[]>({ system: SYSTEM_PROMPT, prompt: batchPrompt, maxTokens: 4096 });
-    candidates = z.array(CandidateSchema).parse(raw);
+    candidates = await generateArray<Candidate>({
+      system: SYSTEM_PROMPT,
+      prompt: batchPrompt,
+      itemSchema: CandidateSchema,
+      maxTokens: 4096,
+    });
   } catch (err) {
     throw new AgentDependencyError(
       `Extraction failed: ${err instanceof Error ? err.message : String(err)}`

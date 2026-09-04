@@ -1,5 +1,6 @@
 import "server-only";
-import { generateText as aiGenerateText } from "ai";
+import { generateText as aiGenerateText, generateObject } from "ai";
+import { z } from "zod";
 import { env } from "./env";
 import { AgentDependencyError } from "./agents/errors";
 
@@ -67,4 +68,31 @@ export async function generateJSON<T>(params: {
 }): Promise<T> {
   const text = await generateText(params);
   return extractJson<T>(text);
+}
+
+/**
+ * Generates a validated array of items using the AI SDK's structured-output
+ * mode. This forces the model to return schema-conforming JSON, so it does not
+ * depend on the model wrapping output in fences or omitting commentary.
+ */
+export async function generateArray<T>(params: {
+  system: string;
+  prompt: string;
+  itemSchema: z.ZodType<T>;
+  maxTokens?: number;
+}): Promise<T[]> {
+  try {
+    const { object } = await generateObject({
+      model: env.AI_MODEL,
+      system: params.system,
+      prompt: params.prompt,
+      maxOutputTokens: params.maxTokens ?? 4096,
+      schema: z.object({ items: z.array(params.itemSchema) }),
+    });
+    return object.items;
+  } catch (err) {
+    if (err instanceof AgentDependencyError) throw err;
+    const message = err instanceof Error ? err.message : String(err);
+    throw new AgentDependencyError(`AI Gateway structured call failed: ${message}`);
+  }
 }
