@@ -8,7 +8,7 @@ const serif = Source_Serif_4({ subsets: ["latin"], variable: "--font-serif" });
 const mono = IBM_Plex_Mono({ subsets: ["latin"], weight: ["400", "500"], variable: "--font-mono" });
 
 export const metadata: Metadata = {
-  title: "Inteligencia Natural — Collaboration Intelligence Radar",
+  title: "KOLAB — Collaboration Intelligence Radar",
   description:
     "A radar of the state of human collaboration inside organizations: signals, patterns and insight, accumulated over time.",
 };

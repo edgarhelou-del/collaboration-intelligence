@@ -26,7 +26,7 @@ const ContentOutputSchema = z.object({
 
 export type ContentOutput = z.infer<typeof ContentOutputSchema>;
 
-const SYSTEM_PROMPT = `You are the Content Agent for Inteligencia Natural, an intelligence radar on
+const SYSTEM_PROMPT = `You are the Content Agent for KOLAB, an intelligence radar on
 human collaboration, collective intelligence, organizational culture, leadership and human-AI
 collaboration.
 

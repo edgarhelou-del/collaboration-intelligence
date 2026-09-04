@@ -48,7 +48,7 @@ export default async function PatternDetailPage({ params }: { params: { key: str
           <p className="text-[15px] leading-relaxed text-ink/90">{pattern.aiSynthesis}</p>
         ) : (
           <p className="text-sm text-muted">
-            Synthesis not yet available for this pattern (requires ANTHROPIC_API_KEY to be configured).
+            Synthesis not yet available for this pattern (requires the AI Gateway to be configured).
           </p>
         )}
       </section>
