@@ -14,15 +14,20 @@ const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
  * different runs, companies, and phrasings — accumulate into the same evolving
  * pattern, while still spanning a diverse set of themes.
  */
+// Order matters: the FIRST rule whose keyword appears in the key wins. Specific
+// practices/methods (improv, storytelling, talking circles) are listed BEFORE
+// generic problem categories (trust, alignment, communication) so a signal like
+// "leadership-storytelling-to-drive-vision-alignment" is grouped as storytelling
+// rather than being absorbed by the generic "alignment" keyword.
 const THEME_RULES: { key: string; label: string; keywords: string[] }[] = [
   { key: "applied-improv-experiential-learning", label: "Applied improv & experiential learning", keywords: ["improv", "improvis", "theater", "theatre", "experiential", "playful", "play", "celebrating-failure", "workshop", "role-play", "simulation", "game"] },
-  { key: "psychological-safety-gap", label: "Psychological safety gap", keywords: ["psychological-safety", "psychological", "speak-up", "speak up", "fear", "courage", "safe-to", "vulnerab", "mental-health"] },
-  { key: "cross-functional-silos", label: "Cross-functional silos", keywords: ["silo", "cross-functional", "cross-team", "department", "handoff", "fragmentation"] },
-  { key: "leadership-alignment-gap", label: "Leadership alignment gap", keywords: ["alignment", "aligned", "priorit", "accountab", "shared-goal", "shared-purpose", "kpi", "okr", "direction"] },
-  { key: "knowledge-sharing-gaps", label: "Knowledge sharing gaps", keywords: ["knowledge", "hoard", "communities-of-practice", "documentation", "transparency", "information-sharing", "tribal"] },
-  { key: "trust-erosion", label: "Trust erosion", keywords: ["trust", "distrust", "credibility", "betray", "psychological-contract"] },
   { key: "corporate-storytelling", label: "Corporate storytelling", keywords: ["storytelling", "story-telling", "narrative", "story-driven", "business-story", "brand-story"] },
   { key: "talking-circles-dialogue", label: "Talking circles & dialogue", keywords: ["talking-circle", "listening-circle", "council-circle", "sharing-circle", "word-circle", "circle-practice", "dialogue-circle", "circulo-de-palabra", "circle"] },
+  { key: "psychological-safety-gap", label: "Psychological safety gap", keywords: ["psychological-safety", "psychological", "speak-up", "speak up", "fear", "courage", "safe-to", "vulnerab", "mental-health"] },
+  { key: "cross-functional-silos", label: "Cross-functional silos", keywords: ["silo", "cross-functional", "cross-team", "department", "handoff", "fragmentation"] },
+  { key: "knowledge-sharing-gaps", label: "Knowledge sharing gaps", keywords: ["knowledge", "hoard", "communities-of-practice", "documentation", "transparency", "information-sharing", "tribal"] },
+  { key: "leadership-alignment-gap", label: "Leadership alignment gap", keywords: ["alignment", "aligned", "priorit", "accountab", "shared-goal", "shared-purpose", "kpi", "okr", "direction"] },
+  { key: "trust-erosion", label: "Trust erosion", keywords: ["trust", "distrust", "credibility", "betray", "psychological-contract"] },
   { key: "communication-breakdown", label: "Communication breakdown", keywords: ["communication", "communicate", "written-communication", "meeting", "overcommunicat", "miscommunicat", "messaging"] },
   { key: "culture-transformation", label: "Culture transformation", keywords: ["culture", "cultural", "transformation", "engagement", "disengage", "belonging", "values", "nadella"] },
   { key: "leadership-development", label: "Leadership development", keywords: ["leadership-development", "leadership-education", "coaching", "manager-training", "develop-leaders", "leadership-program"] },
