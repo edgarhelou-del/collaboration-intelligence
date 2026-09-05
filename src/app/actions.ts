@@ -2,8 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { runBoth, runContent, runPainResearch } from "@/lib/agents/runner";
-import type { ContentStatus, SignalStatus } from "@prisma/client";
+import { runBoth, runContent, runPainResearch, runBioAdaptabilityAgent } from "@/lib/agents/runner";
+import type { BioStatus, ContentStatus, SignalStatus } from "@prisma/client";
 
 export async function triggerRunAll() {
   const outcome = await runBoth();
@@ -11,6 +11,17 @@ export async function triggerRunAll() {
   revalidatePath("/content");
   revalidatePath("/signals");
   revalidatePath("/patterns");
+  revalidatePath("/adaptability");
+  revalidatePath("/adaptability/patterns");
+  revalidatePath("/history");
+  return outcome;
+}
+
+export async function triggerBioAdaptability() {
+  const outcome = await runBioAdaptabilityAgent();
+  revalidatePath("/");
+  revalidatePath("/adaptability");
+  revalidatePath("/adaptability/patterns");
   revalidatePath("/history");
   return outcome;
 }
@@ -55,4 +66,10 @@ export async function updateSignalStatus(id: string, status: SignalStatus) {
   await prisma.signal.update({ where: { id }, data: { status } });
   revalidatePath("/signals");
   revalidatePath(`/signals/${id}`);
+}
+
+export async function updateBioFindingStatus(id: string, status: BioStatus) {
+  await prisma.bioFinding.update({ where: { id }, data: { status } });
+  revalidatePath("/adaptability");
+  revalidatePath(`/adaptability/${id}`);
 }

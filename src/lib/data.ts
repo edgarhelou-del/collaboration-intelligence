@@ -102,6 +102,89 @@ export async function getRelatedContent(patternId: string) {
   });
 }
 
+// ---------------------------------------------------------------------------
+// Bioadaptability Researcher reads
+// ---------------------------------------------------------------------------
+
+export async function getBioFindingCounts() {
+  const findings = await prisma.bioFinding.findMany({ select: { overallScore: true, findingType: true } });
+  const counts = { total: findings.length, exceptional: 0, strong: 0, interesting: 0, archive: 0, attributed: 0, research: 0 };
+  for (const f of findings) {
+    const c = classifyScore(f.overallScore).toLowerCase() as "exceptional" | "strong" | "interesting" | "archive";
+    counts[c]++;
+    if (f.findingType === "ATTRIBUTED") counts.attributed++;
+    else counts.research++;
+  }
+  return counts;
+}
+
+export type BioFindingFilters = {
+  minScore?: number;
+  category?: string;
+  level?: string;
+  findingType?: string;
+  industry?: string;
+  country?: string;
+  status?: string;
+  since?: string;
+};
+
+export function buildBioWhere(filters: BioFindingFilters): Prisma.BioFindingWhereInput {
+  const where: Prisma.BioFindingWhereInput = {};
+  if (filters.minScore) where.overallScore = { gte: filters.minScore };
+  if (filters.category) where.category = filters.category as never;
+  if (filters.level) where.level = filters.level as never;
+  if (filters.findingType) where.findingType = filters.findingType as never;
+  if (filters.industry) where.industry = { equals: filters.industry, mode: "insensitive" };
+  if (filters.country) where.country = { equals: filters.country, mode: "insensitive" };
+  if (filters.status) where.status = filters.status as never;
+  if (filters.since) where.discoveredAt = { gte: new Date(filters.since) };
+  return where;
+}
+
+export async function getBioFindings(filters: BioFindingFilters, take = 200) {
+  return prisma.bioFinding.findMany({
+    where: buildBioWhere(filters),
+    orderBy: { overallScore: "desc" },
+    take,
+  });
+}
+
+export async function getBioFindingById(id: string) {
+  return prisma.bioFinding.findUnique({ where: { id } });
+}
+
+export async function getBioFilterOptions() {
+  const [industries, countries] = await Promise.all([
+    prisma.bioFinding.findMany({ distinct: ["industry"], select: { industry: true }, where: { industry: { not: null } } }),
+    prisma.bioFinding.findMany({ distinct: ["country"], select: { country: true }, where: { country: { not: null } } }),
+  ]);
+  return {
+    industries: industries.map((i) => i.industry!).sort(),
+    countries: countries.map((c) => c.country!).sort(),
+  };
+}
+
+export async function getBioPatterns(sort: "frequent" | "growing" = "frequent") {
+  return prisma.bioPattern.findMany({
+    orderBy: sort === "frequent" ? { findingCount: "desc" } : { growthRate: "desc" },
+  });
+}
+
+export async function getBioPatternByKey(key: string) {
+  return prisma.bioPattern.findUnique({ where: { key } });
+}
+
+export async function getRepresentativeBioFindings(pattern: { representativeFindingIds: unknown }) {
+  const ids = Array.isArray(pattern.representativeFindingIds) ? (pattern.representativeFindingIds as string[]) : [];
+  if (ids.length === 0) return [];
+  return prisma.bioFinding.findMany({ where: { id: { in: ids } } });
+}
+
+export async function getBioFindingsSince(date: Date) {
+  return prisma.bioFinding.findMany({ where: { discoveredAt: { gte: date } }, orderBy: { discoveredAt: "desc" } });
+}
+
 export async function getRecentAgentRuns(take = 20) {
   return prisma.agentRun.findMany({ orderBy: { startedAt: "desc" }, take });
 }

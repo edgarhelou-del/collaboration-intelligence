@@ -2,6 +2,7 @@ import "server-only";
 import { prisma } from "../prisma";
 import { runContentAgent } from "./contentAgent";
 import { runPainResearcher } from "./painResearcher";
+import { runBioAdaptability } from "./bioAdaptability";
 import { AgentDependencyError } from "./errors";
 
 export type AgentRunOutcome = {
@@ -57,14 +58,43 @@ export async function runPainResearch(): Promise<AgentRunOutcome> {
   }
 }
 
-export async function runBoth(): Promise<{ content: AgentRunOutcome; painResearch: AgentRunOutcome }> {
+export async function runBioAdaptabilityAgent(): Promise<AgentRunOutcome> {
+  const run = await prisma.agentRun.create({ data: { agent: "BIO_ADAPTABILITY" } });
+  try {
+    const { savedCount, skippedDuplicates, warnings } = await runBioAdaptability(run.id);
+    const status = warnings.length ? "PARTIAL" : "SUCCESS";
+    const summary = `Found ${savedCount} new finding${savedCount === 1 ? "" : "s"}${
+      skippedDuplicates ? ` (${skippedDuplicates} duplicate${skippedDuplicates === 1 ? "" : "s"} skipped)` : ""
+    }.`;
+    await prisma.agentRun.update({
+      where: { id: run.id },
+      data: {
+        status,
+        finishedAt: new Date(),
+        summary,
+        resultCount: savedCount,
+        metadata: { skippedDuplicates, warnings },
+      },
+    });
+    return { runId: run.id, status, summary };
+  } catch (err) {
+    return await fail(run.id, err);
+  }
+}
+
+export async function runBoth(): Promise<{
+  content: AgentRunOutcome;
+  painResearch: AgentRunOutcome;
+  bioAdaptability: AgentRunOutcome;
+}> {
   // Run sequentially rather than in parallel: on the AI Gateway free tier,
-  // firing both agents' model calls at once bursts past the per-minute rate
+  // firing every agent's model calls at once bursts past the per-minute rate
   // limit. Sequencing spreads the calls out so each can complete (and lets the
-  // per-call backoff ride out the limit) instead of both failing together.
+  // per-call backoff ride out the limit) instead of all failing together.
   const content = await runContent().catch((reason) => toFailedOutcome(reason));
   const painResearch = await runPainResearch().catch((reason) => toFailedOutcome(reason));
-  return { content, painResearch };
+  const bioAdaptability = await runBioAdaptabilityAgent().catch((reason) => toFailedOutcome(reason));
+  return { content, painResearch, bioAdaptability };
 }
 
 async function fail(runId: string, err: unknown): Promise<AgentRunOutcome> {

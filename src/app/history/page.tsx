@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { getAgentRunsSince, getContentSince, getSignalsSince } from "@/lib/data";
+import { getAgentRunsSince, getContentSince, getSignalsSince, getBioFindingsSince } from "@/lib/data";
 import { formatDate, formatDateTime, titleCase } from "@/lib/format";
 import ScorePill from "@/components/ScorePill";
 
@@ -8,10 +8,11 @@ export const dynamic = "force-dynamic";
 export default async function HistoryPage({ searchParams }: { searchParams: { since?: string } }) {
   const since = searchParams.since ? new Date(searchParams.since) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
 
-  const [runs, content, signals] = await Promise.all([
+  const [runs, content, signals, bioFindings] = await Promise.all([
     getAgentRunsSince(since),
     getContentSince(since),
     getSignalsSince(since),
+    getBioFindingsSince(since),
   ]);
 
   return (
@@ -41,7 +42,13 @@ export default async function HistoryPage({ searchParams }: { searchParams: { si
         <ul className="panel divide-y divide-line">
           {runs.map((r) => (
             <li key={r.id} className="flex flex-wrap items-center justify-between gap-2 p-4 text-sm">
-              <span className="font-medium text-ink">{r.agent === "CONTENT" ? "Content Agent" : "Pain Researcher"}</span>
+              <span className="font-medium text-ink">
+                {r.agent === "CONTENT"
+                  ? "Content Agent"
+                  : r.agent === "BIO_ADAPTABILITY"
+                    ? "Bioadaptability Researcher"
+                    : "Pain Researcher"}
+              </span>
               <span className="text-muted">{r.summary ?? r.error ?? "—"}</span>
               <span className="text-xs uppercase tracking-wide text-muted">{r.status}</span>
               <span className="font-mono text-xs text-muted">{formatDateTime(r.startedAt)}</span>
@@ -68,7 +75,7 @@ export default async function HistoryPage({ searchParams }: { searchParams: { si
         </ul>
       </section>
 
-      <section className="mt-8 pb-16">
+      <section className="mt-8">
         <p className="label mb-3">Signals ({signals.length})</p>
         <ul className="panel divide-y divide-line">
           {signals.slice(0, 100).map((s) => (
@@ -82,6 +89,23 @@ export default async function HistoryPage({ searchParams }: { searchParams: { si
             </li>
           ))}
           {signals.length === 0 && <li className="p-4 text-sm text-muted">No signals in this period.</li>}
+        </ul>
+      </section>
+
+      <section className="mt-8 pb-16">
+        <p className="label mb-3">Adaptation Findings ({bioFindings.length})</p>
+        <ul className="panel divide-y divide-line">
+          {bioFindings.slice(0, 100).map((f) => (
+            <li key={f.id} className="flex items-center justify-between gap-3 p-4 text-sm">
+              <Link href={`/adaptability/${f.id}`} className="text-ink hover:underline">
+                {f.title}
+              </Link>
+              <span className="text-xs text-muted">{titleCase(f.category)}</span>
+              <ScorePill score={f.overallScore} />
+              <span className="whitespace-nowrap text-xs text-muted">{formatDate(f.discoveredAt)}</span>
+            </li>
+          ))}
+          {bioFindings.length === 0 && <li className="p-4 text-sm text-muted">No adaptation findings in this period.</li>}
         </ul>
       </section>
     </div>

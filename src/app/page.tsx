@@ -4,6 +4,8 @@ import {
   getSignalCounts,
   getPatterns,
   getRecentAgentRuns,
+  getBioFindingCounts,
+  getBioPatterns,
 } from "@/lib/data";
 import { hasAI, hasSearch, env } from "@/lib/env";
 import { getAiUsageToday } from "@/lib/usage";
@@ -16,12 +18,14 @@ import StatusBadge from "@/components/StatusBadge";
 export const dynamic = "force-dynamic";
 
 export default async function DashboardPage() {
-  const [latestContent, signalCounts, patterns, recentRuns, usage] = await Promise.all([
+  const [latestContent, signalCounts, patterns, recentRuns, usage, bioCounts, bioPatterns] = await Promise.all([
     getLatestContent(),
     getSignalCounts(),
     getPatterns("frequent"),
     getRecentAgentRuns(12),
     getAiUsageToday().catch(() => ({ count: 0, limit: env.AI_DAILY_CALL_LIMIT })),
+    getBioFindingCounts(),
+    getBioPatterns("frequent"),
   ]);
 
   const systemReady = hasAI() && hasSearch();
@@ -30,6 +34,8 @@ export default async function DashboardPage() {
   const usageDepleted = !capDisabled && usage.count >= usage.limit;
   const topPatterns = patterns.slice(0, 6);
   const maxSignalCount = Math.max(1, ...topPatterns.map((p) => p.signalCount));
+  const topBioPatterns = bioPatterns.slice(0, 6);
+  const maxBioCount = Math.max(1, ...topBioPatterns.map((p) => p.findingCount));
 
   const groupedActivity = groupByDay(
     recentRuns.map((r) => ({
@@ -125,6 +131,25 @@ export default async function DashboardPage() {
               View Signals
             </Link>
           </div>
+
+          <div className="panel p-6">
+            <p className="label">Bioadaptability Researcher</p>
+            <dl className="mt-3 grid grid-cols-2 gap-y-2 text-sm">
+              <dt className="text-muted">Findings captured</dt>
+              <dd className="text-right font-mono text-ink">{bioCounts.total}</dd>
+              <dt className="text-muted">Attributed</dt>
+              <dd className="text-right font-mono text-signal-strong">{bioCounts.attributed}</dd>
+              <dt className="text-muted">Research</dt>
+              <dd className="text-right font-mono text-signal-interesting">{bioCounts.research}</dd>
+              <dt className="text-muted">Strong or better</dt>
+              <dd className="text-right font-mono text-signal-exceptional">
+                {bioCounts.exceptional + bioCounts.strong}
+              </dd>
+            </dl>
+            <Link href="/adaptability" className="btn-secondary mt-5 inline-flex">
+              View Findings
+            </Link>
+          </div>
         </div>
       </section>
 
@@ -137,6 +162,23 @@ export default async function DashboardPage() {
             topPatterns.map((p) => (
               <Link key={p.id} href={`/patterns/${p.key}`} className="block hover:opacity-80">
                 <Bar value={p.signalCount} max={maxSignalCount} label={p.label} sub={`${p.signalCount}`} />
+              </Link>
+            ))
+          )}
+        </div>
+      </section>
+
+      <section className="mt-10">
+        <p className="label mb-3">Emerging Adaptation Patterns</p>
+        <div className="panel p-6">
+          {topBioPatterns.length === 0 ? (
+            <p className="text-sm text-muted">
+              No adaptation patterns yet — run the Bioadaptability Researcher to begin building the radar.
+            </p>
+          ) : (
+            topBioPatterns.map((p) => (
+              <Link key={p.id} href={`/adaptability/patterns/${p.key}`} className="block hover:opacity-80">
+                <Bar value={p.findingCount} max={maxBioCount} label={p.label} sub={`${p.findingCount}`} />
               </Link>
             ))
           )}
@@ -169,7 +211,12 @@ export default async function DashboardPage() {
 }
 
 function activityText(run: { agent: string; status: string; summary: string | null; error: string | null }) {
-  const agentLabel = run.agent === "CONTENT" ? "Content Agent" : "Pain Researcher";
+  const agentLabel =
+    run.agent === "CONTENT"
+      ? "Content Agent"
+      : run.agent === "BIO_ADAPTABILITY"
+        ? "Bioadaptability Researcher"
+        : "Pain Researcher";
   if (run.status === "RUNNING") return `${agentLabel} started a run`;
   if (run.status === "FAILED") return `${agentLabel} run failed — ${run.error ?? "unknown error"}`;
   return `${agentLabel} — ${run.summary ?? titleCase(run.status)}`;

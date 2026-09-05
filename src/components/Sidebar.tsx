@@ -9,6 +9,8 @@ const NAV = [
   { href: "/content", label: "Content" },
   { href: "/signals", label: "Pain Radar" },
   { href: "/patterns", label: "Emerging Patterns" },
+  { href: "/adaptability", label: "Adaptability Radar" },
+  { href: "/adaptability/patterns", label: "Adaptability Patterns" },
   { href: "/history", label: "History" },
 ];
 
@@ -23,7 +25,14 @@ export default function Sidebar() {
         </Link>
         <nav className="mt-10 flex flex-col gap-1">
           {NAV.map((item) => {
-            const active = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
+            // "/adaptability" must not stay active on the "/adaptability/patterns"
+            // subroute, so exclude it when a deeper nav item matches better.
+            const active =
+              item.href === "/"
+                ? pathname === "/"
+                : item.href === "/adaptability"
+                  ? pathname === "/adaptability" || pathname.startsWith("/adaptability/") && !pathname.startsWith("/adaptability/patterns")
+                  : pathname.startsWith(item.href);
             return (
               <Link
                 key={item.href}

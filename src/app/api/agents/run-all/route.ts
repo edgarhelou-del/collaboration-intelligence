@@ -3,14 +3,17 @@ import { runBoth } from "@/lib/agents/runner";
 import { assertCronAuthorized } from "@/lib/cronAuth";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 90;
+export const maxDuration = 120;
 
 export async function POST(request: Request) {
   const unauthorized = assertCronAuthorized(request);
   if (unauthorized) return unauthorized;
 
   const outcome = await runBoth();
-  const failed = outcome.content.status === "FAILED" && outcome.painResearch.status === "FAILED";
+  const failed =
+    outcome.content.status === "FAILED" &&
+    outcome.painResearch.status === "FAILED" &&
+    outcome.bioAdaptability.status === "FAILED";
   return NextResponse.json(outcome, { status: failed ? 502 : 200 });
 }
 
