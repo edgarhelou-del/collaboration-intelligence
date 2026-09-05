@@ -100,6 +100,39 @@ const QUERY_TOPICS: Record<BioCategory, string[]> = {
   ],
 };
 
+// Level-oriented query banks. The organization level was already well covered
+// by the category topics above, so INDIVIDUAL and TEAM get dedicated phrasing:
+//   - INDIVIDUAL leans into how PEOPLE learn and UNLEARN, personal mindset
+//     shifts and reskilling as they adapt to change.
+//   - TEAM leans into what TEAM COACHING / team development experts observe
+//     about how teams adapt, so the results surface practitioner insight rather
+//     than macro corporate reports.
+const LEVEL_TOPICS: Record<BioLevel, string[]> = {
+  INDIVIDUAL: [
+    "learning and unlearning at work",
+    "how professionals unlearn old habits to adapt",
+    "unlearning mindset to adapt to change",
+    "personal adaptability learning new skills change",
+    "reskilling and growth mindset for individuals",
+    "how people adapt personally to organizational change",
+    "cognitive flexibility adapting to new ways of working",
+    "letting go of expertise to relearn at work",
+  ],
+  TEAM: [
+    "team coaching how teams adapt to change",
+    "team coach expert on team adaptability",
+    "systemic team coaching through change",
+    "team coaching research adapting teams",
+    "team development coach navigating change",
+    "high performing teams coaching change",
+    "team coaching psychological safety during change",
+    "agile team coaching adapting to disruption",
+  ],
+  // Organization keeps the full breadth of the category topics so the level
+  // that was working stays comprehensive.
+  ORGANIZATION: Object.values(QUERY_TOPICS).flat(),
+};
+
 // Broad, natural query templates. Both problem-oriented and study-oriented, so
 // the results include surveys/reports (RESEARCH) and named practitioners
 // (ATTRIBUTED). No rigid quoted phrases — those rarely match real pages.
@@ -112,20 +145,33 @@ const QUERY_TEMPLATES = [
   (topic: string) => `expert on ${topic}`,
 ];
 
-function pickPhrase(cat: BioCategory): string {
-  const phrases = QUERY_TOPICS[cat];
+function pickPhrase(level: BioLevel): string {
+  const phrases = LEVEL_TOPICS[level];
   return phrases[Math.floor(Math.random() * phrases.length)];
 }
 
-function pickQueries(n: number): string[] {
-  const cats = [...BIO_CATEGORIES].sort(() => Math.random() - 0.5);
-  const queries: string[] = [];
-  for (let i = 0; i < n; i++) {
-    const cat = cats[i % cats.length];
+// Guarantee balanced coverage across the three system levels. INDIVIDUAL and
+// TEAM are intentionally weighted higher because those were being missed, while
+// ORGANIZATION keeps a couple of slots since it was already capturing well.
+function pickQueries(): string[] {
+  const plan: BioLevel[] = [
+    "INDIVIDUAL",
+    "INDIVIDUAL",
+    "INDIVIDUAL",
+    "INDIVIDUAL",
+    "TEAM",
+    "TEAM",
+    "TEAM",
+    "TEAM",
+    "ORGANIZATION",
+    "ORGANIZATION",
+  ];
+  const queries = new Set<string>();
+  plan.forEach((level, i) => {
     const template = QUERY_TEMPLATES[i % QUERY_TEMPLATES.length];
-    queries.push(template(pickPhrase(cat)));
-  }
-  return queries;
+    queries.add(template(pickPhrase(level)));
+  });
+  return [...queries];
 }
 
 const CandidateSchema = z.object({
@@ -207,6 +253,16 @@ CRITICAL RULES:
 - Never fabricate a quote. If the snippet gives exact words, you may quote them verbatim and set
   isParaphrase=false. Otherwise write a faithful paraphrase and set isParaphrase=true.
 - "level" is the primary system level the dynamic operates at: INDIVIDUAL, TEAM, or ORGANIZATION.
+  Actively capture findings at ALL THREE levels — do not default everything to ORGANIZATION:
+    * INDIVIDUAL: how a PERSON adapts — especially LEARNING and UNLEARNING (letting go of old
+      habits, skills or expertise to relearn), mindset shifts, cognitive flexibility, personal
+      reskilling and how individuals cope with change. When a snippet describes what people do to
+      unlearn/relearn, capture it as INDIVIDUAL.
+    * TEAM: how a TEAM adapts — prioritize insight from TEAM COACHING and team-development experts
+      (team coaches, facilitators, practitioners) on how teams build adaptability, psychological
+      safety, and navigate change together. Named coaches/practitioners here are ATTRIBUTED findings;
+      studies about team adaptation are RESEARCH.
+    * ORGANIZATION: enterprise/system-wide adaptation.
 - If a snippet contains nothing about adaptation to change, skip it. Returning an empty array is
   correct when nothing qualifies. But do not be overly strict — adaptation-to-change material is
   common in these snippets, so capture what genuinely qualifies.
@@ -243,7 +299,7 @@ export async function runBioAdaptability(agentRunId: string): Promise<{
   }
 
   const warnings: string[] = [];
-  const queries = pickQueries(10);
+  const queries = pickQueries();
   const allResults: (SearchResult & { query: string })[] = [];
 
   // Run searches concurrently (independent, no AI Gateway involved) so 10
