@@ -1,6 +1,6 @@
 import "server-only";
 import { generateText as aiGenerateText } from "ai";
-import { env, hasAI } from "./env";
+import { hasAI, getAiModels } from "./env";
 import { AgentDependencyError } from "./agents/errors";
 import { reserveAiCall } from "./usage";
 
@@ -8,9 +8,11 @@ import { reserveAiCall } from "./usage";
  * Calls the model through the Vercel AI Gateway and returns raw text.
  *
  * Authentication is zero-config on Vercel/v0 (OIDC), so no provider API key is
- * needed. The model is referenced with a Gateway `provider/model` id (see
- * AI_MODEL in env). Throws AgentDependencyError on any transport/auth failure
- * so callers can report "research incomplete" instead of inventing a result.
+ * needed. Models are referenced with Gateway `provider/model` ids (see AI_MODEL
+ * / AI_FALLBACK_MODELS in env): the primary is tried first and, if it is
+ * unavailable or rate-limited even after the SDK's per-model retries, the next
+ * fallback model is tried. Throws AgentDependencyError only when every model
+ * fails, so callers report "research incomplete" instead of inventing a result.
  */
 export async function generateText(params: {
   system: string;
@@ -24,30 +26,61 @@ export async function generateText(params: {
     );
   }
 
-  // Enforce the daily budget cap BEFORE spending a model call. Thrown as an
-  // AgentDependencyError so it propagates like any other missing dependency.
+  // Enforce the daily budget cap BEFORE spending a model call. One logical call
+  // reserves one unit no matter how many fallback models it ends up trying.
+  // Thrown as an AgentDependencyError so it propagates like a missing dependency.
   await reserveAiCall();
 
-  try {
-    const { text } = await aiGenerateText({
-      model: env.AI_MODEL,
-      maxOutputTokens: params.maxTokens ?? 4096,
-      system: params.system,
-      prompt: params.prompt,
-      // The AI Gateway free tier is rate-limited per minute. The SDK retries
-      // with exponential backoff (~2s, 4s, 8s, 16s, 32s), so 5 retries ride
-      // out a full ~1-minute window instead of failing fast on a burst.
-      maxRetries: 5,
-    });
-    if (!text || !text.trim()) {
-      throw new AgentDependencyError("Model returned no text content.");
+  const models = getAiModels();
+  // The free-tier limit is per-minute and account-wide, so a burst can throttle
+  // EVERY model at once. When that happens we cool down and try the whole chain
+  // again — the window usually resets within a minute — instead of failing the
+  // run. Passes: immediate, then after ~15s and ~30s (kept within the route's
+  // maxDuration budget).
+  const cooldownsMs = [0, 15_000, 30_000];
+  let lastMessage = "no models configured";
+  let lastWasRateLimit = false;
+
+  for (let pass = 0; pass < cooldownsMs.length; pass++) {
+    if (pass > 0) {
+      if (!lastWasRateLimit) break; // only cool down for rate limits
+      await sleep(cooldownsMs[pass]);
     }
-    return text;
-  } catch (err) {
-    if (err instanceof AgentDependencyError) throw err;
-    const message = err instanceof Error ? err.message : String(err);
-    throw new AgentDependencyError(`AI Gateway call failed: ${message}`);
+
+    for (let i = 0; i < models.length; i++) {
+      const model = models[i];
+      try {
+        const { text } = await aiGenerateText({
+          model,
+          maxOutputTokens: params.maxTokens ?? 4096,
+          system: params.system,
+          prompt: params.prompt,
+          // The SDK retries transient failures with exponential backoff
+          // (~2s, 4s); after that we move to the next fallback model.
+          maxRetries: 2,
+        });
+        if (!text || !text.trim()) {
+          throw new Error("Model returned no text content.");
+        }
+        return text;
+      } catch (err) {
+        lastMessage = err instanceof Error ? err.message : String(err);
+        lastWasRateLimit = isRateLimit(lastMessage);
+      }
+    }
   }
+
+  throw new AgentDependencyError(
+    `AI Gateway call failed for all models (${models.join(", ")}). Last error: ${lastMessage}`
+  );
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function isRateLimit(message: string): boolean {
+  return /rate.?limit|429|too many requests/i.test(message);
 }
 
 /** Extracts the first JSON object/array from a model response, tolerating markdown fences. */

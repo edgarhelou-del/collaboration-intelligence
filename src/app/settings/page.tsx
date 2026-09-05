@@ -56,7 +56,12 @@ export default async function SettingsPage() {
       <section className="mt-8">
         <p className="label mb-3">Model</p>
         <p className="text-sm text-ink">{env.AI_MODEL}</p>
-        <p className="mt-1 text-xs text-muted">Override with the AI_MODEL environment variable (Gateway provider/model id).</p>
+        {env.AI_FALLBACK_MODELS.length > 0 && (
+          <p className="mt-1 text-xs text-muted">
+            Fallbacks (tried when the primary is rate-limited): {env.AI_FALLBACK_MODELS.join(", ")}
+          </p>
+        )}
+        <p className="mt-1 text-xs text-muted">Override with the AI_MODEL / AI_FALLBACK_MODELS environment variables (Gateway provider/model ids).</p>
       </section>
 
       <section className="mt-8">
