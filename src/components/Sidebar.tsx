@@ -9,6 +9,7 @@ const NAV = [
   { href: "/content", label: "Content" },
   { href: "/signals", label: "Pain Radar" },
   { href: "/patterns", label: "Emerging Patterns" },
+  { href: "/bioadaptabilidad", label: "Bioadaptabilidad" },
   { href: "/history", label: "History" },
 ];
 
