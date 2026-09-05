@@ -1,13 +1,18 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { triggerContentAgent, triggerPainResearch, triggerRunAll } from "@/app/actions";
+import {
+  triggerContentAgent,
+  triggerPainResearch,
+  triggerBioAdaptability,
+  triggerRunAll,
+} from "@/app/actions";
 
-type Target = "all" | "content" | "pain-research";
+type Target = "all" | "content" | "pain-research" | "bio-adaptability";
 
 export default function RunAgentsButton({
   target = "all",
-  label = "Run Both Agents",
+  label = "Run All Agents",
   className = "btn-primary",
 }: {
   target?: Target;
@@ -30,12 +35,19 @@ export default function RunAgentsButton({
           const res = await triggerPainResearch();
           setIsError(res.status === "FAILED");
           setMessage(res.error ? `${res.summary} ${res.error}` : res.summary);
+        } else if (target === "bio-adaptability") {
+          const res = await triggerBioAdaptability();
+          setIsError(res.status === "FAILED");
+          setMessage(res.error ? `${res.summary} ${res.error}` : res.summary);
         } else {
           const res = await triggerRunAll();
-          const failed = res.content.status === "FAILED" || res.painResearch.status === "FAILED";
+          const failed =
+            res.content.status === "FAILED" ||
+            res.painResearch.status === "FAILED" ||
+            res.bioAdaptability.status === "FAILED";
           setIsError(failed);
           setMessage(
-            `Content: ${res.content.summary}${res.content.error ? ` — ${res.content.error}` : ""} · Pain Researcher: ${res.painResearch.summary}${res.painResearch.error ? ` — ${res.painResearch.error}` : ""}`
+            `Content: ${res.content.summary}${res.content.error ? ` — ${res.content.error}` : ""} · Pain Researcher: ${res.painResearch.summary}${res.painResearch.error ? ` — ${res.painResearch.error}` : ""} · Bioadaptability: ${res.bioAdaptability.summary}${res.bioAdaptability.error ? ` — ${res.bioAdaptability.error}` : ""}`
           );
         }
       } catch (err) {

@@ -50,6 +50,7 @@ model AiUsage {
 enum AgentType {
   CONTENT
   PAIN_RESEARCH
+  BIO_ADAPTABILITY
 }
 
 enum AgentRunStatus {
@@ -72,6 +73,7 @@ model AgentRun {
 
   contentItems ContentItem[]
   signals      Signal[]
+  bioFindings  BioFinding[]
 
   @@index([agent, startedAt])
   @@map("agent_runs")
@@ -296,4 +298,144 @@ model Pattern {
   updatedAt DateTime @updatedAt
 
   @@map("patterns")
+}
+
+// ---------------------------------------------------------------------------
+// Bioadaptability Researcher — the third agent.
+//
+// "Bioadaptability" here is organizational adaptation to change: how
+// individuals, teams and whole organizations sense, absorb and evolve through
+// change (reorgs, transformations, new tech/AI adoption, culture shifts).
+//
+// Unlike the Pain Researcher, a finding does NOT require a named person and
+// company. Adaptation evidence often lives in studies, surveys and reports
+// that describe a dynamic without attributing it to one named executive.
+// Requiring attribution is exactly why earlier attempts "captured nothing", so
+// attribution here is OPTIONAL and findings come in two flavors:
+//   - ATTRIBUTED: a named person/company describing an adaptation dynamic
+//   - RESEARCH:   a study, survey, report or expert finding (no named subject)
+// ---------------------------------------------------------------------------
+
+enum BioFindingType {
+  ATTRIBUTED
+  RESEARCH
+}
+
+// The level of the system the adaptation dynamic operates at.
+enum BioLevel {
+  INDIVIDUAL
+  TEAM
+  ORGANIZATION
+}
+
+enum BioCategory {
+  CHANGE_READINESS
+  CHANGE_FATIGUE
+  RESILIENCE
+  LEARNING_AGILITY
+  REORGANIZATION
+  TRANSFORMATION_ADOPTION
+  LEADERSHIP_OF_CHANGE
+  TEAM_ADAPTABILITY
+  CULTURE_SHIFT
+  AI_ADOPTION
+  IDENTITY_AND_MEANING
+  OTHER
+}
+
+enum BioStatus {
+  NEW
+  REVIEWING
+  RELEVANT
+  ARCHIVED
+}
+
+model BioFinding {
+  id         String    @id @default(cuid())
+  agentRunId String?
+  agentRun   AgentRun? @relation(fields: [agentRunId], references: [id], onDelete: SetNull)
+
+  findingType BioFindingType
+  level       BioLevel
+  category    BioCategory
+  patternKey  String // stable, reusable kebab-case theme slug
+  patternLabel String
+
+  title    String // short headline of the adaptation finding
+  summary  String // description of the adaptation dynamic observed
+  evidence String // exact quote, faithful paraphrase, or study finding
+  isParaphrase Boolean @default(false)
+
+  // Optional attribution — nullable on purpose (RESEARCH findings have none).
+  personName String?
+  role       String?
+  company    String?
+  industry   String?
+  country    String?
+
+  sourceUrl  String
+  sourceName String?
+  sourceType SourceType @default(OTHER)
+  sourceDate DateTime?
+
+  discoveredAt DateTime @default(now())
+
+  evidenceScore    Int // 0-35
+  relevanceScore   Int // 0-30 relevance to organizational adaptation
+  actionabilityScore Int // 0-20 how useful/actionable the insight is
+  recencyScore     Int // 0-15
+  overallScore     Int // sum, 0-100
+
+  whyItMatters String?
+  implication  String? // what it implies for leaders navigating change
+
+  status BioStatus @default(NEW)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([overallScore])
+  @@index([category])
+  @@index([level])
+  @@index([patternKey])
+  @@index([status])
+  @@index([discoveredAt])
+  @@map("bio_findings")
+}
+
+// Aggregated adaptation patterns — recomputed after each Bioadaptability run,
+// mirroring the collaboration Pattern engine but for the adaptation domain.
+model BioPattern {
+  id    String @id @default(cuid())
+  key   String @unique
+  label String
+
+  category BioCategory
+  level    BioLevel
+
+  findingCount    Int
+  last30Count     Int
+  previous30Count Int
+  growthRate      Float
+  averageScore    Float
+
+  attributedCount Int @default(0)
+  researchCount   Int @default(0)
+
+  topIndustries Json // [{ name, count }]
+  topCountries  Json // [{ name, count }]
+  topLevels     Json // [{ name, count }]
+
+  representativeFindingIds Json // string[]
+
+  firstAppearance  DateTime
+  latestAppearance DateTime
+
+  aiSynthesis   String?
+  synthesizedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("bio_patterns")
 }
