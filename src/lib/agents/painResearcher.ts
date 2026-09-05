@@ -274,14 +274,27 @@ export async function runPainResearcher(agentRunId: string): Promise<{
   const queries = pickQueries(10);
   const allResults: (SearchResult & { query: string })[] = [];
 
-  for (const query of queries) {
-    try {
-      const results = await webSearch(query, { maxResults: 8 });
-      results.forEach((r) => allResults.push({ ...r, query }));
-    } catch (err) {
-      warnings.push(`Search failed for "${query}": ${err instanceof Error ? err.message : String(err)}`);
+  // Run the searches concurrently rather than one-at-a-time. Each Tavily
+  // "advanced" query takes ~2s, so 10 sequential calls added ~20s of pure wait
+  // to every run — enough, once the AI extraction and Content Agent are added
+  // on top, to blow past the request timeout and surface as "Failed to fetch"
+  // in the browser. These queries are independent and never touch the AI
+  // Gateway, so parallelizing them is safe and collapses that ~20s to ~2s.
+  // Unlike the model calls (kept sequential to respect the Gateway rate limit),
+  // Tavily tolerates the concurrency. allSettled keeps one failed query from
+  // aborting the rest; failures are recorded as warnings exactly as before.
+  const searches = await Promise.allSettled(
+    queries.map((query) => webSearch(query, { maxResults: 8 }))
+  );
+  searches.forEach((settled, i) => {
+    const query = queries[i];
+    if (settled.status === "fulfilled") {
+      settled.value.forEach((r) => allResults.push({ ...r, query }));
+    } else {
+      const reason = settled.reason;
+      warnings.push(`Search failed for "${query}": ${reason instanceof Error ? reason.message : String(reason)}`);
     }
-  }
+  });
 
   if (allResults.length === 0) {
     throw new AgentDependencyError(
