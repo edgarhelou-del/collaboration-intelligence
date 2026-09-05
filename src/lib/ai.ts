@@ -46,6 +46,15 @@ export async function generateText(params: {
   } catch (err) {
     if (err instanceof AgentDependencyError) throw err;
     const message = err instanceof Error ? err.message : String(err);
+    // Surface the free-tier rate limit as a clear, temporary condition rather
+    // than a generic failure, so the UI can tell the user to simply retry soon.
+    if (/rate.?limit|429|too many requests/i.test(message)) {
+      throw new AgentDependencyError(
+        "The AI Gateway free tier is temporarily rate-limited. No changes were lost — " +
+          "wait about a minute and run the agents again. For uninterrupted runs, add paid " +
+          "AI Gateway credits in your Vercel dashboard."
+      );
+    }
     throw new AgentDependencyError(`AI Gateway call failed: ${message}`);
   }
 }

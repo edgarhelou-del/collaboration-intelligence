@@ -434,7 +434,12 @@ export async function runPainResearcher(agentRunId: string): Promise<{
     savedCount++;
   }
 
-  await recomputePatterns();
+  // Aggregate patterns immediately, but SKIP the per-pattern AI synthesis here:
+  // running one synthesis call per pattern right after the extraction call would
+  // burst past the AI Gateway free-tier per-minute rate limit and fail the run.
+  // Synthesis is a best-effort nice-to-have, refreshed separately via
+  // POST /api/patterns/recompute?synthesis=1 when budget allows.
+  await recomputePatterns({ skipSynthesis: true });
 
   return { savedCount, skippedDuplicates, warnings };
 }
