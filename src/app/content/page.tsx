@@ -5,16 +5,22 @@ import RunAgentsButton from "@/components/RunAgentsButton";
 import ContentActions from "@/components/ContentActions";
 import StatusBadge from "@/components/StatusBadge";
 import ScorePill from "@/components/ScorePill";
+import ArchiveToggle from "@/components/ArchiveToggle";
 
 export const dynamic = "force-dynamic";
 
 type Evidence = { text: string; kind: "FACT" | "INTERPRETATION" | "HYPOTHESIS"; sourceUrl?: string };
 type SourceItem = { title: string; url: string; publisher?: string };
 
-export default async function ContentPage({ searchParams }: { searchParams: { id?: string } }) {
+export default async function ContentPage({
+  searchParams,
+}: {
+  searchParams: { id?: string; archived?: string };
+}) {
+  const archived = searchParams.archived === "1";
   const [item, history] = await Promise.all([
-    searchParams.id ? getContentById(searchParams.id) : getLatestContent(),
-    getContentHistory(),
+    searchParams.id ? getContentById(searchParams.id) : getLatestContent(archived),
+    getContentHistory(15, archived),
   ]);
 
   return (
@@ -22,13 +28,20 @@ export default async function ContentPage({ searchParams }: { searchParams: { id
       <header className="flex flex-wrap items-center justify-between gap-4 border-b border-line pb-6">
         <div>
           <p className="kicker">Content Agent</p>
-          <h1 className="mt-1 font-serif text-2xl font-semibold text-ink">Today&rsquo;s Content</h1>
+          <h1 className="mt-1 font-serif text-2xl font-semibold text-ink">
+            {archived ? "Archived Content" : "Today\u2019s Content"}
+          </h1>
         </div>
-        <RunAgentsButton target="content" label="Run Content Agent" className="btn-secondary" />
+        <div className="flex items-center gap-3">
+          <ArchiveToggle basePath="/content" params={searchParams} archived={archived} />
+          <RunAgentsButton target="content" label="Run Content Agent" className="btn-secondary" />
+        </div>
       </header>
 
       {!item ? (
-        <p className="mt-8 text-sm text-muted">No content generated yet.</p>
+        <p className="mt-8 text-sm text-muted">
+          {archived ? "No archived content yet." : "No content generated yet."}
+        </p>
       ) : (
         <div className="mt-8 grid grid-cols-1 gap-10 lg:grid-cols-[1fr_260px]">
           <article>
@@ -105,12 +118,17 @@ export default async function ContentPage({ searchParams }: { searchParams: { id
           </article>
 
           <aside>
-            <p className="label mb-3">History</p>
+            <p className="label mb-3">{archived ? "Archived" : "History"}</p>
             <ul className="space-y-3">
+              {history.length === 0 && (
+                <li className="text-xs text-muted">
+                  {archived ? "Nothing archived yet." : "No content yet."}
+                </li>
+              )}
               {history.map((h) => (
                 <li key={h.id}>
                   <Link
-                    href={`/content?id=${h.id}`}
+                    href={archived ? `/content?id=${h.id}&archived=1` : `/content?id=${h.id}`}
                     className={`block rounded border p-3 text-sm transition hover:border-ink ${
                       h.id === item.id ? "border-ink" : "border-line"
                     }`}

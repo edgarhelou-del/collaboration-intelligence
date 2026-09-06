@@ -14,9 +14,11 @@ export default function ContentActions({ item }: { item: ContentItem }) {
     linkedinPost: item.linkedinPost,
   });
 
-  function setStatus(status: "APPROVED" | "REJECTED" | "PUBLISHED") {
+  function setStatus(status: "APPROVED" | "REJECTED" | "PUBLISHED" | "ARCHIVED" | "DRAFT") {
     startTransition(() => updateContentStatus(item.id, status));
   }
+
+  const isArchived = item.status === "ARCHIVED";
 
   function save() {
     startTransition(async () => {
@@ -49,6 +51,17 @@ export default function ContentActions({ item }: { item: ContentItem }) {
     );
   }
 
+  if (isArchived) {
+    return (
+      <div className="flex flex-wrap items-center gap-3">
+        <span className="text-xs text-muted">This item is archived — hidden from the active view.</span>
+        <button className="btn-primary" onClick={() => setStatus("DRAFT")} disabled={isPending}>
+          Restore
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-wrap gap-3">
       <button className="btn-secondary" onClick={() => setEditing(true)}>
@@ -62,6 +75,9 @@ export default function ContentActions({ item }: { item: ContentItem }) {
       </button>
       <button className="btn-secondary" onClick={() => setStatus("PUBLISHED")} disabled={isPending}>
         Mark as Published
+      </button>
+      <button className="btn-secondary" onClick={() => setStatus("ARCHIVED")} disabled={isPending}>
+        Archive
       </button>
     </div>
   );

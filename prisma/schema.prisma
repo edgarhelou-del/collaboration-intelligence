@@ -88,6 +88,7 @@ enum ContentStatus {
   APPROVED
   PUBLISHED
   REJECTED
+  ARCHIVED
 }
 
 model ContentItem {

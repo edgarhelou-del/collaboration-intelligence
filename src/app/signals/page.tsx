@@ -3,6 +3,7 @@ import { getFilterOptions, getSignals, type SignalFilters } from "@/lib/data";
 import { formatDate, titleCase } from "@/lib/format";
 import ScorePill from "@/components/ScorePill";
 import RunAgentsButton from "@/components/RunAgentsButton";
+import ArchiveToggle from "@/components/ArchiveToggle";
 
 export const dynamic = "force-dynamic";
 
@@ -20,10 +21,11 @@ const PAIN_CATEGORIES = [
   "HUMAN_AI_COLLABORATION",
   "OTHER",
 ];
-const STATUSES = ["NEW", "INVESTIGATING", "RELEVANT", "CONTACTED", "ARCHIVED"];
+const STATUSES = ["NEW", "INVESTIGATING", "RELEVANT", "CONTACTED"];
 const EVIDENCE_TYPES = ["DIRECT", "INDIRECT"];
 
 export default async function SignalsPage({ searchParams }: { searchParams: Record<string, string> }) {
+  const archived = searchParams.archived === "1";
   const filters: SignalFilters = {
     minScore: searchParams.minScore ? Number(searchParams.minScore) : undefined,
     industry: searchParams.industry || undefined,
@@ -33,6 +35,7 @@ export default async function SignalsPage({ searchParams }: { searchParams: Reco
     evidenceType: searchParams.evidenceType || undefined,
     status: searchParams.status || undefined,
     since: searchParams.since || undefined,
+    archived,
   };
 
   const [signals, options] = await Promise.all([getSignals(filters, 200), getFilterOptions()]);
@@ -42,9 +45,14 @@ export default async function SignalsPage({ searchParams }: { searchParams: Reco
       <header className="flex flex-wrap items-center justify-between gap-4 border-b border-line pb-6">
         <div>
           <p className="kicker">Pain Researcher</p>
-          <h1 className="mt-1 font-serif text-2xl font-semibold text-ink">Pain Radar</h1>
+          <h1 className="mt-1 font-serif text-2xl font-semibold text-ink">
+            {archived ? "Pain Radar — Archive" : "Pain Radar"}
+          </h1>
         </div>
-        <RunAgentsButton target="pain-research" label="Run Pain Researcher" className="btn-secondary" />
+        <div className="flex items-center gap-3">
+          <ArchiveToggle basePath="/signals" params={searchParams} archived={archived} />
+          <RunAgentsButton target="pain-research" label="Run Pain Researcher" className="btn-secondary" />
+        </div>
       </header>
 
       <form className="mt-6 flex flex-wrap items-end gap-4 border-b border-line pb-6" method="get">
@@ -65,12 +73,15 @@ export default async function SignalsPage({ searchParams }: { searchParams: Reco
           options={EVIDENCE_TYPES}
           defaultValue={searchParams.evidenceType}
         />
-        <SelectField name="status" label="Status" options={STATUSES} defaultValue={searchParams.status} />
+        {!archived && (
+          <SelectField name="status" label="Status" options={STATUSES} defaultValue={searchParams.status} />
+        )}
         <TextField name="since" label="Since" defaultValue={searchParams.since} type="date" />
+        {archived && <input type="hidden" name="archived" value="1" />}
         <button className="btn-secondary h-[38px]" type="submit">
           Filter
         </button>
-        <Link href="/signals" className="text-xs text-muted underline">
+        <Link href={archived ? "/signals?archived=1" : "/signals"} className="text-xs text-muted underline">
           Clear
         </Link>
       </form>
@@ -114,7 +125,9 @@ export default async function SignalsPage({ searchParams }: { searchParams: Reco
         </table>
         {signals.length === 0 && (
           <p className="py-10 text-center text-sm text-muted">
-            No signals yet — run the Pain Researcher, or adjust your filters.
+            {archived
+              ? "No archived signals. Archive a signal from its detail page to move it here."
+              : "No signals yet — run the Pain Researcher, or adjust your filters."}
           </p>
         )}
       </div>
