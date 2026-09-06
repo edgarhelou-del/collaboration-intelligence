@@ -3,7 +3,7 @@ import { z } from "zod";
 import { prisma } from "../prisma";
 import { generateJSON } from "../ai";
 import { webSearch, type SearchResult } from "../search";
-import { hasSearch } from "../env";
+import { hasSearch, env } from "../env";
 import { isDuplicateSignal } from "../dedupe";
 import {
   evidenceScore,
@@ -264,14 +264,14 @@ export async function runPainResearcher(agentRunId: string): Promise<{
 }> {
   if (!hasSearch()) {
     throw new AgentDependencyError(
-      "TAVILY_API_KEY is not configured. The Pain Researcher requires live web search and will not fabricate signals without it."
+      "Web search is unavailable (the AI Gateway is not configured). The Pain Researcher requires live web search and will not fabricate signals without it."
     );
   }
 
   const warnings: string[] = [];
   // Target ~10 signals per run: cast a wider net across pain categories and pull
   // more results per query so the extractor has enough qualifying material.
-  const queries = pickQueries(10);
+  const queries = pickQueries(env.RESEARCH_MAX_QUERIES);
   const allResults: (SearchResult & { query: string })[] = [];
 
   // Run the searches concurrently rather than one-at-a-time. Each Tavily

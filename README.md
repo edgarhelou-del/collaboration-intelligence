@@ -82,8 +82,8 @@ prisma/schema.prisma the full data model
 
 1. Reads the top emerging patterns and the last 10 published ideas
    (for deduplication).
-2. If `TAVILY_API_KEY` is set, runs one web search for recent research
-   related to the top pattern; those snippets are the *only* things it
+2. When the AI Gateway is available, runs one web search (Perplexity Sonar)
+   for recent research related to the top pattern; those snippets are the *only* things it
    is allowed to cite as FACT (with a source URL). Anything else is
    labeled INTERPRETATION or HYPOTHESIS — never presented as a verified
    citation.
@@ -140,10 +140,11 @@ npm run db:push              # creates tables from prisma/schema.prisma
 npm run dev
 ```
 
-Open http://localhost:3000. Without `ANTHROPIC_API_KEY` / `TAVILY_API_KEY`
-set, the dashboard still works — clicking "Run Both Agents" will honestly
-report that research/generation is unavailable rather than fabricating
-data (see `src/lib/agents/errors.ts`).
+Open http://localhost:3000. Without AI Gateway access configured, the
+dashboard still works — clicking "Run All Agents" will honestly report
+that research/generation is unavailable rather than fabricating data
+(see `src/lib/agents/errors.ts`). Both AI generation and web search go
+through the Vercel AI Gateway, which is zero-config on Vercel/v0.
 
 ## 5. Environment variables
 
@@ -152,9 +153,10 @@ See `.env.example`. Required for full functionality:
 | Variable | Required | Purpose |
 |---|---|---|
 | `DATABASE_URL` | Yes | PostgreSQL connection string |
-| `ANTHROPIC_API_KEY` | For content/extraction | Server-side only, never sent to the browser |
-| `ANTHROPIC_MODEL` | No | Defaults to `claude-sonnet-4-5` |
-| `TAVILY_API_KEY` | For the Pain Researcher | Without it, that agent refuses to run rather than invent signals |
+| `AI_GATEWAY_API_KEY` | Local dev only | Zero-config on Vercel/v0 via OIDC; only needed when running locally outside Vercel |
+| `AI_MODEL` | No | Gateway `provider/model` id for generation. Defaults to `openai/gpt-4.1-mini` |
+| `SEARCH_MODEL` | No | Gateway `provider/model` id for web search. Defaults to `perplexity/sonar` |
+| `RESEARCH_MAX_QUERIES` | No | Max web searches per researcher pass. Defaults to `4` (keep modest on the free tier) |
 | `CRON_SECRET` | No | Locks `/api/agents/*` to requests carrying this bearer token (Vercel Cron sends it automatically) |
 
 ## 6. Database setup
@@ -197,8 +199,9 @@ git push -u origin <branch-name>
 
 1. Import the GitHub repository in Vercel.
 2. Add the environment variables from `.env.example` in the project's
-   Vercel settings (`DATABASE_URL`, `ANTHROPIC_API_KEY`, `TAVILY_API_KEY`,
-   optionally `ANTHROPIC_MODEL` and `CRON_SECRET`).
+   Vercel settings (`DATABASE_URL` is required; AI generation and web search
+   use the zero-config AI Gateway on Vercel, so no AI key is needed —
+   optionally `AI_MODEL`, `SEARCH_MODEL`, `RESEARCH_MAX_QUERIES`, `CRON_SECRET`).
 3. Deploy. `postinstall` runs `prisma generate` automatically.
 4. Run `npx prisma db push` once (locally, pointed at the production
    `DATABASE_URL`, or via a one-off Vercel deploy hook) to create the

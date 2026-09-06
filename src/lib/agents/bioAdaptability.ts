@@ -3,7 +3,7 @@ import { z } from "zod";
 import { prisma } from "../prisma";
 import { generateJSON } from "../ai";
 import { webSearch, type SearchResult } from "../search";
-import { hasSearch } from "../env";
+import { hasSearch, env } from "../env";
 import { jaccardSimilarity } from "../dedupe";
 import {
   bioEvidenceScore,
@@ -294,12 +294,12 @@ export async function runBioAdaptability(agentRunId: string): Promise<{
 }> {
   if (!hasSearch()) {
     throw new AgentDependencyError(
-      "TAVILY_API_KEY is not configured. The Bioadaptability Researcher requires live web search and will not fabricate findings without it."
+      "Web search is unavailable (the AI Gateway is not configured). The Bioadaptability Researcher requires live web search and will not fabricate findings without it."
     );
   }
 
   const warnings: string[] = [];
-  const queries = pickQueries();
+  const queries = pickQueries().slice(0, env.RESEARCH_MAX_QUERIES);
   const allResults: (SearchResult & { query: string })[] = [];
 
   // Run searches concurrently (independent, no AI Gateway involved) so 10
