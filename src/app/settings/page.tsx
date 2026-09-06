@@ -39,10 +39,10 @@ export default async function SettingsPage() {
             badText="Not configured — set AI_GATEWAY_API_KEY for local dev"
           />
           <StatusRow
-            label="Web research (TAVILY_API_KEY)"
+            label="Web research (Perplexity Sonar via AI Gateway)"
             ok={hasSearch()}
-            okText="Configured"
-            badText="Not configured — Pain Researcher will report incomplete research rather than fabricate signals"
+            okText="Available — zero-config on Vercel/v0"
+            badText="Unavailable — Pain Researcher will report incomplete research rather than fabricate signals"
           />
           <StatusRow
             label="Cron protection (CRON_SECRET)"
