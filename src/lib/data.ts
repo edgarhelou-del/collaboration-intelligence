@@ -25,11 +25,13 @@ export async function getContentById(id: string) {
   return prisma.contentItem.findUnique({ where: { id } });
 }
 
-export async function getContentHistory(take = 15, archived = false) {
+// `take` is optional: omit it (or pass 0) to return the full history so every
+// item stays consultable, no matter how far back it goes.
+export async function getContentHistory(take?: number, archived = false) {
   return prisma.contentItem.findMany({
     where: contentArchiveWhere(archived),
     orderBy: { createdAt: "desc" },
-    take,
+    ...(take && take > 0 ? { take } : {}),
   });
 }
 

@@ -20,7 +20,7 @@ export default async function ContentPage({
   const archived = searchParams.archived === "1";
   const [item, history] = await Promise.all([
     searchParams.id ? getContentById(searchParams.id) : getLatestContent(archived),
-    getContentHistory(15, archived),
+    getContentHistory(undefined, archived),
   ]);
 
   return (
@@ -118,8 +118,13 @@ export default async function ContentPage({
           </article>
 
           <aside>
-            <p className="label mb-3">{archived ? "Archived" : "History"}</p>
-            <ul className="space-y-3">
+            <p className="label mb-3">
+              {archived ? "Archived" : "History"}
+              {history.length > 0 && (
+                <span className="ml-2 font-normal text-muted">({history.length})</span>
+              )}
+            </p>
+            <ul className="max-h-[70vh] space-y-3 overflow-y-auto pr-1">
               {history.length === 0 && (
                 <li className="text-xs text-muted">
                   {archived ? "Nothing archived yet." : "No content yet."}
