@@ -7,16 +7,30 @@ import type { Prisma } from "@prisma/client";
 // pages) is what lets the underlying provider change later without
 // touching page components.
 
-export async function getLatestContent() {
-  return prisma.contentItem.findFirst({ orderBy: { createdAt: "desc" } });
+// Archive convention: an item marked ARCHIVED disappears from the default
+// ("active") view of its section and is only reachable from that section's
+// Archived view. Everything else stays consultable by default.
+function contentArchiveWhere(archived: boolean): Prisma.ContentItemWhereInput {
+  return archived ? { status: "ARCHIVED" } : { status: { not: "ARCHIVED" } };
+}
+
+export async function getLatestContent(archived = false) {
+  return prisma.contentItem.findFirst({
+    where: contentArchiveWhere(archived),
+    orderBy: { createdAt: "desc" },
+  });
 }
 
 export async function getContentById(id: string) {
   return prisma.contentItem.findUnique({ where: { id } });
 }
 
-export async function getContentHistory(take = 15) {
-  return prisma.contentItem.findMany({ orderBy: { createdAt: "desc" }, take });
+export async function getContentHistory(take = 15, archived = false) {
+  return prisma.contentItem.findMany({
+    where: contentArchiveWhere(archived),
+    orderBy: { createdAt: "desc" },
+    take,
+  });
 }
 
 export async function getSignalCounts() {
@@ -38,6 +52,7 @@ export type SignalFilters = {
   evidenceType?: string;
   status?: string;
   since?: string;
+  archived?: boolean;
 };
 
 export function buildSignalWhere(filters: SignalFilters): Prisma.SignalWhereInput {
@@ -48,8 +63,12 @@ export function buildSignalWhere(filters: SignalFilters): Prisma.SignalWhereInpu
   if (filters.role) where.role = { contains: filters.role, mode: "insensitive" };
   if (filters.painCategory) where.painCategory = filters.painCategory as never;
   if (filters.evidenceType) where.evidenceType = filters.evidenceType as never;
-  if (filters.status) where.status = filters.status as never;
   if (filters.since) where.discoveredAt = { gte: new Date(filters.since) };
+  // Archive view shows only archived; otherwise honor an explicit status
+  // filter, and by default hide archived signals from the active radar.
+  if (filters.archived) where.status = "ARCHIVED";
+  else if (filters.status) where.status = filters.status as never;
+  else where.status = { not: "ARCHIVED" };
   return where;
 }
 
@@ -127,6 +146,7 @@ export type BioFindingFilters = {
   country?: string;
   status?: string;
   since?: string;
+  archived?: boolean;
 };
 
 export function buildBioWhere(filters: BioFindingFilters): Prisma.BioFindingWhereInput {
@@ -137,8 +157,12 @@ export function buildBioWhere(filters: BioFindingFilters): Prisma.BioFindingWher
   if (filters.findingType) where.findingType = filters.findingType as never;
   if (filters.industry) where.industry = { equals: filters.industry, mode: "insensitive" };
   if (filters.country) where.country = { equals: filters.country, mode: "insensitive" };
-  if (filters.status) where.status = filters.status as never;
   if (filters.since) where.discoveredAt = { gte: new Date(filters.since) };
+  // Archive view shows only archived; otherwise honor an explicit status
+  // filter, and by default hide archived findings from the active radar.
+  if (filters.archived) where.status = "ARCHIVED";
+  else if (filters.status) where.status = filters.status as never;
+  else where.status = { not: "ARCHIVED" };
   return where;
 }
 

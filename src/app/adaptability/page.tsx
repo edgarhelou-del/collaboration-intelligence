@@ -3,6 +3,7 @@ import { getBioFilterOptions, getBioFindingCounts, getBioFindings, type BioFindi
 import { formatDate, titleCase } from "@/lib/format";
 import ScorePill from "@/components/ScorePill";
 import RunAgentsButton from "@/components/RunAgentsButton";
+import ArchiveToggle from "@/components/ArchiveToggle";
 
 export const dynamic = "force-dynamic";
 
@@ -22,9 +23,10 @@ const CATEGORIES = [
 ];
 const LEVELS = ["INDIVIDUAL", "TEAM", "ORGANIZATION"];
 const TYPES = ["ATTRIBUTED", "RESEARCH"];
-const STATUSES = ["NEW", "REVIEWING", "RELEVANT", "ARCHIVED"];
+const STATUSES = ["NEW", "REVIEWING", "RELEVANT"];
 
 export default async function AdaptabilityPage({ searchParams }: { searchParams: Record<string, string> }) {
+  const archived = searchParams.archived === "1";
   const filters: BioFindingFilters = {
     minScore: searchParams.minScore ? Number(searchParams.minScore) : undefined,
     category: searchParams.category || undefined,
@@ -34,6 +36,7 @@ export default async function AdaptabilityPage({ searchParams }: { searchParams:
     country: searchParams.country || undefined,
     status: searchParams.status || undefined,
     since: searchParams.since || undefined,
+    archived,
   };
 
   const [findings, options, counts] = await Promise.all([
@@ -47,13 +50,18 @@ export default async function AdaptabilityPage({ searchParams }: { searchParams:
       <header className="flex flex-wrap items-center justify-between gap-4 border-b border-line pb-6">
         <div>
           <p className="kicker">Bioadaptability Researcher</p>
-          <h1 className="mt-1 font-serif text-2xl font-semibold text-ink">Adaptability Radar</h1>
+          <h1 className="mt-1 font-serif text-2xl font-semibold text-ink">
+            {archived ? "Adaptability Radar — Archive" : "Adaptability Radar"}
+          </h1>
           <p className="mt-2 max-w-2xl text-sm text-muted">
             How individuals, teams and organizations sense, absorb and evolve through change — captured
             from both named practitioners and research.
           </p>
         </div>
-        <RunAgentsButton target="bio-adaptability" label="Run Bioadaptability" className="btn-secondary" />
+        <div className="flex items-center gap-3">
+          <ArchiveToggle basePath="/adaptability" params={searchParams} archived={archived} />
+          <RunAgentsButton target="bio-adaptability" label="Run Bioadaptability" className="btn-secondary" />
+        </div>
       </header>
 
       <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
@@ -70,12 +78,15 @@ export default async function AdaptabilityPage({ searchParams }: { searchParams:
         <SelectField name="category" label="Category" options={CATEGORIES} labelFn={titleCase} defaultValue={searchParams.category} />
         <SelectField name="industry" label="Industry" options={options.industries} defaultValue={searchParams.industry} />
         <SelectField name="country" label="Country" options={options.countries} defaultValue={searchParams.country} />
-        <SelectField name="status" label="Status" options={STATUSES} labelFn={titleCase} defaultValue={searchParams.status} />
+        {!archived && (
+          <SelectField name="status" label="Status" options={STATUSES} labelFn={titleCase} defaultValue={searchParams.status} />
+        )}
         <TextField name="since" label="Since" defaultValue={searchParams.since} type="date" />
+        {archived && <input type="hidden" name="archived" value="1" />}
         <button className="btn-secondary h-[38px]" type="submit">
           Filter
         </button>
-        <Link href="/adaptability" className="text-xs text-muted underline">
+        <Link href={archived ? "/adaptability?archived=1" : "/adaptability"} className="text-xs text-muted underline">
           Clear
         </Link>
       </form>
@@ -120,7 +131,9 @@ export default async function AdaptabilityPage({ searchParams }: { searchParams:
         </table>
         {findings.length === 0 && (
           <p className="py-10 text-center text-sm text-muted">
-            No findings yet — run the Bioadaptability Researcher, or adjust your filters.
+            {archived
+              ? "No archived findings. Archive a finding from its detail page to move it here."
+              : "No findings yet — run the Bioadaptability Researcher, or adjust your filters."}
           </p>
         )}
       </div>
