@@ -14,7 +14,10 @@ export const env = {
   // Hard cap on model calls per UTC day, to stay within the AI Gateway free
   // tier and never incur charges. Override with AI_DAILY_CALL_LIMIT. Set to 0
   // to disable the cap (only do this once you've added paid Gateway credits).
-  AI_DAILY_CALL_LIMIT: parsePositiveInt(process.env.AI_DAILY_CALL_LIMIT, 100),
+  // Web search now also counts against this budget (each search is a Gateway
+  // model call), so a full run of all three agents uses ~15-20 calls; 300
+  // leaves room for roughly a dozen full runs per day on the free tier.
+  AI_DAILY_CALL_LIMIT: parsePositiveInt(process.env.AI_DAILY_CALL_LIMIT, 300),
   // Max web searches each researcher runs per pass. Web search now goes through
   // the AI Gateway (Perplexity Sonar), so every search is a model call. The
   // free tier is rate-limited per minute, so we keep this modest by default;
