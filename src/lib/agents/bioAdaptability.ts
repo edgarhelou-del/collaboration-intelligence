@@ -145,31 +145,41 @@ const QUERY_TEMPLATES = [
   (topic: string) => `expert on ${topic}`,
 ];
 
-function pickPhrase(level: BioLevel): string {
+function pickPhrase(level: BioLevel, idx: number): string {
   const phrases = LEVEL_TOPICS[level];
-  return phrases[Math.floor(Math.random() * phrases.length)];
+  return phrases[idx % phrases.length];
 }
 
 // Guarantee balanced coverage across the three system levels. INDIVIDUAL and
 // TEAM are intentionally weighted higher because those were being missed, while
 // ORGANIZATION keeps a couple of slots since it was already capturing well.
-function pickQueries(): string[] {
+// The plan is INTERLEAVED (not grouped) so that when it is later sliced to
+// RESEARCH_MAX_QUERIES (e.g. 4), the kept queries still span all three levels
+// instead of being all INDIVIDUAL. Phrase choice advances deterministically by
+// prior run count so each level's full phrase bank is rotated through over
+// successive runs rather than randomly re-sampled (which left niche
+// practitioner phrases rarely searched).
+function pickQueries(runOffset: number): string[] {
   const plan: BioLevel[] = [
     "INDIVIDUAL",
+    "TEAM",
     "INDIVIDUAL",
-    "INDIVIDUAL",
-    "INDIVIDUAL",
-    "TEAM",
-    "TEAM",
-    "TEAM",
-    "TEAM",
     "ORGANIZATION",
+    "TEAM",
+    "INDIVIDUAL",
+    "TEAM",
+    "INDIVIDUAL",
     "ORGANIZATION",
+    "TEAM",
   ];
+  const perLevel: Partial<Record<BioLevel, number>> = {};
   const queries = new Set<string>();
   plan.forEach((level, i) => {
-    const template = QUERY_TEMPLATES[i % QUERY_TEMPLATES.length];
-    queries.add(template(pickPhrase(level)));
+    const slot = perLevel[level] ?? 0;
+    perLevel[level] = slot + 1;
+    const count = plan.filter((l) => l === level).length;
+    const template = QUERY_TEMPLATES[(runOffset + i) % QUERY_TEMPLATES.length];
+    queries.add(template(pickPhrase(level, runOffset * count + slot)));
   });
   return [...queries];
 }
@@ -266,6 +276,10 @@ CRITICAL RULES:
 - If a snippet contains nothing about adaptation to change, skip it. Returning an empty array is
   correct when nothing qualifies. But do not be overly strict — adaptation-to-change material is
   common in these snippets, so capture what genuinely qualifies.
+- Always map "category" to the SINGLE most specific BioCategory that fits (CHANGE_READINESS,
+  CHANGE_FATIGUE, RESILIENCE, LEARNING_AGILITY, REORGANIZATION, TRANSFORMATION_ADOPTION,
+  LEADERSHIP_OF_CHANGE, TEAM_ADAPTABILITY, CULTURE_SHIFT, AI_ADOPTION, IDENTITY_AND_MEANING). Use
+  OTHER ONLY when none of these genuinely applies — do not default to OTHER.
 - patternKey must be a STABLE, REUSABLE theme-level kebab-case slug shared by many future findings
   (e.g. "change-fatigue-burnout", "ai-adoption-adaptation", "resilience-building",
   "learning-agility-reskilling", "reorg-restructuring", "leadership-of-change", "culture-shift").
@@ -299,7 +313,10 @@ export async function runBioAdaptability(agentRunId: string): Promise<{
   }
 
   const warnings: string[] = [];
-  const queries = pickQueries().slice(0, env.RESEARCH_MAX_QUERIES);
+  // Advance deterministically by prior Bio-run count so coverage rotates evenly
+  // across runs instead of randomly re-sampling the same phrases.
+  const priorRuns = await prisma.agentRun.count({ where: { agent: "BIO_ADAPTABILITY" } });
+  const queries = pickQueries(priorRuns).slice(0, env.RESEARCH_MAX_QUERIES);
   const allResults: (SearchResult & { query: string })[] = [];
 
   // Run searches concurrently (independent, no AI Gateway involved) so 10
