@@ -126,21 +126,40 @@ const QUERY_TEMPLATES = [
   (role: string, topic: string) => `${role} explains ${topic} at their company`,
 ];
 
-function pickPhrase(cat: PainCategory): string {
-  const phrases = QUERY_TOPICS[cat];
-  return phrases[Math.floor(Math.random() * phrases.length)];
-}
+// Round-robin order that INCLUDES "OTHER" so its generic angles rotate too.
+const ALL_PAIN_CATEGORIES: PainCategory[] = [...PAIN_CATEGORIES, "OTHER"];
 
-function pickQueries(n: number): string[] {
-  // Rotate through all categories (shuffled) so a run spans many collaboration
-  // themes, picking a random angle phrase for each to widen subject coverage.
-  const cats = [...PAIN_CATEGORIES].sort(() => Math.random() - 0.5);
+// Flat, deterministic phrase pool built by interleaving categories: one phrase
+// per category per "round". Any consecutive slice therefore spans several
+// DIFFERENT categories, and successive rounds reach the deeper, more niche
+// phrases (e.g. "collective intelligence at work", "applied improv training",
+// "talking circles at work") instead of leaving them permanently unsearched.
+// Random sampling used to bury those single-phrase niche themes — this is the
+// core fix for the search bias.
+function buildTopicPool(): { cat: PainCategory; phrase: string }[] {
+  const maxLen = Math.max(...ALL_PAIN_CATEGORIES.map((c) => QUERY_TOPICS[c].length));
+  const pool: { cat: PainCategory; phrase: string }[] = [];
+  for (let round = 0; round < maxLen; round++) {
+    for (const cat of ALL_PAIN_CATEGORIES) {
+      const phrase = QUERY_TOPICS[cat][round];
+      if (phrase) pool.push({ cat, phrase });
+    }
+  }
+  return pool;
+}
+const TOPIC_POOL = buildTopicPool();
+
+// Deterministic rotation: each run starts where the previous one left off
+// (`runOffset` = number of prior Pain runs), so over consecutive runs the
+// searcher covers EVERY theme evenly rather than re-sampling the same few.
+function pickQueries(n: number, runOffset: number): string[] {
   const queries: string[] = [];
+  const start = (runOffset * n) % TOPIC_POOL.length;
   for (let i = 0; i < n; i++) {
-    const cat = cats[i % cats.length];
-    const role = ROLE_TERMS[Math.floor(Math.random() * ROLE_TERMS.length)];
-    const template = QUERY_TEMPLATES[i % QUERY_TEMPLATES.length];
-    queries.push(template(role, pickPhrase(cat)));
+    const { phrase } = TOPIC_POOL[(start + i) % TOPIC_POOL.length];
+    const role = ROLE_TERMS[(runOffset + i) % ROLE_TERMS.length];
+    const template = QUERY_TEMPLATES[(runOffset + i) % QUERY_TEMPLATES.length];
+    queries.push(template(role, phrase));
   }
   return queries;
 }
@@ -226,6 +245,8 @@ CRITICAL RULES:
 - Never infer a collaboration problem or practice merely because a company is "undergoing
   transformation", "scaling", "restructuring", or similar generic business language. You need actual
   evidence of a stated problem OR a concretely described practice/experiment.
+- Always map painCategory to the SINGLE most specific category that fits. Use OTHER only when no
+  listed category genuinely applies — do not default to OTHER out of convenience.
 - classify evidence as DIRECT (the person explicitly describes the problem) or INDIRECT (the
   statement strongly suggests it without stating it outright).
 - Never fabricate a quote. If the snippet gives you the person's exact words, you may quote them
@@ -269,9 +290,13 @@ export async function runPainResearcher(agentRunId: string): Promise<{
   }
 
   const warnings: string[] = [];
-  // Target ~10 signals per run: cast a wider net across pain categories and pull
-  // more results per query so the extractor has enough qualifying material.
-  const queries = pickQueries(env.RESEARCH_MAX_QUERIES);
+  // Balanced coverage: advance through the theme pool based on how many Pain
+  // runs happened before, so successive runs cover EVERY theme evenly (incl.
+  // niche ones like collective intelligence / applied improv) instead of
+  // randomly re-sampling a few. Counting includes the current run row, which
+  // simply gives a consistent +1 advance per run.
+  const priorRuns = await prisma.agentRun.count({ where: { agent: "PAIN_RESEARCH" } });
+  const queries = pickQueries(env.RESEARCH_MAX_QUERIES, priorRuns);
   const allResults: (SearchResult & { query: string })[] = [];
 
   // Run the searches concurrently rather than one-at-a-time. Each Tavily
