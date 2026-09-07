@@ -2,7 +2,13 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { runBoth, runContent, runPainResearch, runBioAdaptabilityAgent } from "@/lib/agents/runner";
+import {
+  runBoth,
+  runContent,
+  runPainResearch,
+  runBioAdaptabilityAgent,
+  reconcileStaleRuns,
+} from "@/lib/agents/runner";
 import type { AgentType, BioStatus, ContentStatus, SignalStatus } from "@prisma/client";
 
 export type RunTarget = "all" | "content" | "pain-research" | "bio-adaptability";
@@ -25,6 +31,9 @@ function launch(work: () => Promise<unknown>) {
 export async function startAgentRun(
   target: RunTarget
 ): Promise<{ baseline: string; agents: AgentType[] }> {
+  // Clear out any orphaned RUNNING runs from a prior restart so they don't
+  // linger in history or interfere with fresh runs.
+  await reconcileStaleRuns();
   const baseline = new Date();
   const agents: AgentType[] =
     target === "content"
@@ -55,6 +64,9 @@ export async function pollAgentRuns(
   baselineISO: string,
   agents: AgentType[]
 ): Promise<{ done: boolean; perAgent: AgentRunProgress[] }> {
+  // If the current run itself hangs long enough, reconcile flips it to FAILED
+  // so polling resolves instead of spinning until the client safety timeout.
+  await reconcileStaleRuns();
   const since = new Date(baselineISO);
   const runs = await prisma.agentRun.findMany({
     where: { agent: { in: agents }, startedAt: { gte: since } },

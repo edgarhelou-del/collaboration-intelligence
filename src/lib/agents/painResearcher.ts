@@ -299,15 +299,11 @@ export async function runPainResearcher(agentRunId: string): Promise<{
   const queries = pickQueries(env.RESEARCH_MAX_QUERIES, priorRuns);
   const allResults: (SearchResult & { query: string })[] = [];
 
-  // Run the searches concurrently rather than one-at-a-time. Each Tavily
-  // "advanced" query takes ~2s, so 10 sequential calls added ~20s of pure wait
-  // to every run — enough, once the AI extraction and Content Agent are added
-  // on top, to blow past the request timeout and surface as "Failed to fetch"
-  // in the browser. These queries are independent and never touch the AI
-  // Gateway, so parallelizing them is safe and collapses that ~20s to ~2s.
-  // Unlike the model calls (kept sequential to respect the Gateway rate limit),
-  // Tavily tolerates the concurrency. allSettled keeps one failed query from
-  // aborting the rest; failures are recorded as warnings exactly as before.
+  // Each search is now a Perplexity Sonar call on the AI Gateway. We launch
+  // them together for convenience, but the shared global throttle serializes
+  // the actual Gateway calls and spaces them under the free-tier per-minute
+  // limit, so they no longer burst into 429s. allSettled keeps one failed
+  // query from aborting the rest; failures are recorded as warnings.
   const searches = await Promise.allSettled(
     queries.map((query) => webSearch(query, { maxResults: 8 }))
   );

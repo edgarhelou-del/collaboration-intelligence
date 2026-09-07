@@ -4,6 +4,7 @@ import { hasAI } from "./env";
 import { AgentDependencyError } from "./agents/errors";
 import { extractJson } from "./ai";
 import { reserveAiCall } from "./usage";
+import { throttleGateway } from "./gatewayThrottle";
 
 export type SearchResult = {
   title: string;
@@ -24,30 +25,6 @@ export type SearchResult = {
  * behind this same function signature.
  */
 const SEARCH_MODEL = process.env.SEARCH_MODEL || "perplexity/sonar";
-
-/**
- * Global throttle. The AI Gateway free tier is rate-limited per minute, and a
- * single research run fires many searches (each is now a Gateway model call).
- * Firing them all at once instantly trips the limit, so we serialize searches
- * and leave a minimum gap between them; the SDK's own ret/backoff handles any
- * remaining pressure. Override the spacing with SEARCH_MIN_SPACING_MS.
- */
-const MIN_SPACING_MS = Number.parseInt(process.env.SEARCH_MIN_SPACING_MS || "1200", 10) || 1200;
-let searchChain: Promise<void> = Promise.resolve();
-
-async function withThrottle<T>(fn: () => Promise<T>): Promise<T> {
-  const prior = searchChain;
-  let release!: () => void;
-  searchChain = new Promise<void>((resolve) => {
-    release = resolve;
-  });
-  await prior;
-  try {
-    return await fn();
-  } finally {
-    setTimeout(release, MIN_SPACING_MS);
-  }
-}
 
 type RawResult = {
   title?: string;
@@ -78,13 +55,14 @@ export async function webSearch(
   let text: string;
   let sources: { sourceType: string; url?: string; title?: string }[];
   try {
-    const result = await withThrottle(() =>
+    const result = await throttleGateway(() =>
       aiGenerateText({
         model: SEARCH_MODEL,
         maxOutputTokens: 2048,
-        // Sonar is rate-limited per minute like other Gateway models; retry with
-        // exponential backoff so a burst rides out the window instead of failing.
-        maxRetries: 5,
+        // The shared throttle already spaces Gateway calls under the per-minute
+        // limit, so keep retries modest — a call that still fails should fail
+        // fast rather than retrying for ~60s.
+        maxRetries: 3,
         system:
           "You are a precise web research tool. Search the live web and return ONLY " +
           "factual results grounded in real, currently-accessible pages. Never invent " +
@@ -108,8 +86,8 @@ export async function webSearch(
     const message = err instanceof Error ? err.message : String(err);
     if (/rate.?limit|429|too many requests/i.test(message)) {
       throw new AgentDependencyError(
-        "The AI Gateway free tier is temporarily rate-limited. No changes were lost — " +
-          "wait about a minute and run the agents again."
+        "The AI Gateway rejected the search (429) — the free-tier credit is likely " +
+          "exhausted. Add AI Gateway credits in your Vercel dashboard to resume web research."
       );
     }
     throw new AgentDependencyError(`Web search failed: ${message}`);
