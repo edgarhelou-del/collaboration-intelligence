@@ -3,7 +3,92 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { runBoth, runContent, runPainResearch, runBioAdaptabilityAgent } from "@/lib/agents/runner";
-import type { BioStatus, ContentStatus, SignalStatus } from "@prisma/client";
+import type { AgentType, BioStatus, ContentStatus, SignalStatus } from "@prisma/client";
+
+export type RunTarget = "all" | "content" | "pain-research" | "bio-adaptability";
+
+// Retain references to detached background work so it isn't garbage-collected
+// while it runs after the triggering request has already responded.
+const inFlight = new Set<Promise<unknown>>();
+function launch(work: () => Promise<unknown>) {
+  const p = work()
+    .catch((err) => console.error("[v0] background agent run failed:", err))
+    .finally(() => inFlight.delete(p));
+  inFlight.add(p);
+}
+
+// Start an agent run WITHOUT awaiting it. Long agent runs (minutes of web
+// search + extraction) used to be awaited inside the server action, holding the
+// browser's fetch open until it timed out with "Failed to fetch". Instead we
+// kick the work off in the background and return immediately; the client polls
+// `pollAgentRuns` for progress. `baseline` lets polling ignore older runs.
+export async function startAgentRun(
+  target: RunTarget
+): Promise<{ baseline: string; agents: AgentType[] }> {
+  const baseline = new Date();
+  const agents: AgentType[] =
+    target === "content"
+      ? ["CONTENT"]
+      : target === "pain-research"
+        ? ["PAIN_RESEARCH"]
+        : target === "bio-adaptability"
+          ? ["BIO_ADAPTABILITY"]
+          : ["CONTENT", "PAIN_RESEARCH", "BIO_ADAPTABILITY"];
+
+  if (target === "content") launch(runContent);
+  else if (target === "pain-research") launch(runPainResearch);
+  else if (target === "bio-adaptability") launch(runBioAdaptabilityAgent);
+  else launch(runBoth);
+
+  return { baseline: baseline.toISOString(), agents };
+}
+
+export type AgentRunProgress = {
+  agent: AgentType;
+  status: "RUNNING" | "SUCCESS" | "FAILED" | "PARTIAL";
+  finished: boolean;
+  summary: string | null;
+  error: string | null;
+};
+
+export async function pollAgentRuns(
+  baselineISO: string,
+  agents: AgentType[]
+): Promise<{ done: boolean; perAgent: AgentRunProgress[] }> {
+  const since = new Date(baselineISO);
+  const runs = await prisma.agentRun.findMany({
+    where: { agent: { in: agents }, startedAt: { gte: since } },
+    orderBy: { startedAt: "desc" },
+  });
+
+  // Keep only the most recent run per agent since the baseline.
+  const latest = new Map<AgentType, (typeof runs)[number]>();
+  for (const r of runs) if (!latest.has(r.agent)) latest.set(r.agent, r);
+
+  const perAgent: AgentRunProgress[] = agents.map((agent) => {
+    const r = latest.get(agent);
+    return {
+      agent,
+      status: (r?.status ?? "RUNNING") as AgentRunProgress["status"],
+      finished: Boolean(r?.finishedAt),
+      summary: r?.summary ?? null,
+      error: r?.error ?? null,
+    };
+  });
+
+  // Done only when every targeted agent has a finished run since the baseline.
+  const done = perAgent.every((p) => p.finished);
+  if (done) {
+    revalidatePath("/");
+    revalidatePath("/content");
+    revalidatePath("/signals");
+    revalidatePath("/patterns");
+    revalidatePath("/adaptability");
+    revalidatePath("/adaptability/patterns");
+    revalidatePath("/history");
+  }
+  return { done, perAgent };
+}
 
 export async function triggerRunAll() {
   const outcome = await runBoth();
