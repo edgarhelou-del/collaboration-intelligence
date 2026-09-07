@@ -1,28 +1,61 @@
 import "server-only";
 
+/**
+ * Free-stack configuration.
+ *
+ * The app runs entirely on free tiers with NO Vercel AI Gateway credit:
+ *   - LLM (extraction + content generation) → Groq (GROQ_API_KEY)
+ *   - Web search                            → Tavily (TAVILY_API_KEY)
+ *
+ * Both providers have their own free quotas, so usage is metered per provider
+ * across daily / weekly / monthly windows and hard-capped (see usage.ts) to
+ * guarantee the app never spends money.
+ */
 export const env = {
-  // Vercel AI Gateway model id in `provider/model` form. Override with AI_MODEL.
-  // Default is a model available on the AI Gateway free tier. Premium models
-  // like anthropic/claude-sonnet-4.5 require paid Gateway credits.
-  AI_MODEL: process.env.AI_MODEL || "openai/gpt-4.1-mini",
-  // Optional: only needed for local dev outside Vercel/v0. On Vercel/v0 the
-  // AI Gateway authenticates automatically via OIDC, so this stays empty.
-  AI_GATEWAY_API_KEY: process.env.AI_GATEWAY_API_KEY ?? "",
-  // Gateway `provider/model` id used for live web search (Perplexity Sonar).
-  SEARCH_MODEL: process.env.SEARCH_MODEL || "perplexity/sonar",
+  // Groq model id (see console.groq.com/docs/models). The default is a capable
+  // model available on Groq's free tier. Override with GROQ_MODEL.
+  GROQ_MODEL: process.env.GROQ_MODEL || "llama-3.3-70b-versatile",
+  // Groq API key — create a free key at console.groq.com. Required for any LLM
+  // work (extraction, content). No credit card needed.
+  GROQ_API_KEY: process.env.GROQ_API_KEY ?? "",
+  // Tavily API key — free web-search tier at tavily.com. Required for research.
+  TAVILY_API_KEY: process.env.TAVILY_API_KEY ?? "",
   CRON_SECRET: process.env.CRON_SECRET ?? "",
-  // Hard cap on model calls per UTC day, to stay within the AI Gateway free
-  // tier and never incur charges. Override with AI_DAILY_CALL_LIMIT. Set to 0
-  // to disable the cap (only do this once you've added paid Gateway credits).
-  // Web search now also counts against this budget (each search is a Gateway
-  // model call), so a full run of all three agents uses ~15-20 calls; 300
-  // leaves room for roughly a dozen full runs per day on the free tier.
-  AI_DAILY_CALL_LIMIT: parsePositiveInt(process.env.AI_DAILY_CALL_LIMIT, 300),
-  // Max web searches each researcher runs per pass. Web search now goes through
-  // the AI Gateway (Perplexity Sonar), so every search is a model call. The
-  // free tier is rate-limited per minute, so we keep this modest by default;
-  // raise it with RESEARCH_MAX_QUERIES once paid Gateway credits are added.
+  // Max web searches each researcher runs per pass. Kept modest so a full run
+  // sips the Tavily free tier; raise with RESEARCH_MAX_QUERIES.
   RESEARCH_MAX_QUERIES: parsePositiveInt(process.env.RESEARCH_MAX_QUERIES, 4),
+};
+
+export type ProviderKey = "groq" | "tavily";
+
+export type WindowLimits = { daily: number; weekly: number; monthly: number };
+
+/**
+ * Free-tier-safe caps per provider, for each rolling window. A cap of 0
+ * disables that window. The automatic brake in usage.ts pauses runs when ANY
+ * enabled window for a provider is reached, so the app stays inside the free
+ * tier. All are env-overridable, e.g. GROQ_DAILY_LIMIT, TAVILY_MONTHLY_LIMIT.
+ *
+ * Defaults sit comfortably under each provider's published free allowance:
+ *   - Groq free tier is ~1,000 requests/day → daily 500 leaves wide margin.
+ *   - Tavily free tier is ~1,000 credits/month → monthly 900 stays under it.
+ */
+export const USAGE_LIMITS: Record<ProviderKey, WindowLimits> = {
+  groq: {
+    daily: parsePositiveInt(process.env.GROQ_DAILY_LIMIT, 500),
+    weekly: parsePositiveInt(process.env.GROQ_WEEKLY_LIMIT, 3000),
+    monthly: parsePositiveInt(process.env.GROQ_MONTHLY_LIMIT, 12000),
+  },
+  tavily: {
+    daily: parsePositiveInt(process.env.TAVILY_DAILY_LIMIT, 200),
+    weekly: parsePositiveInt(process.env.TAVILY_WEEKLY_LIMIT, 700),
+    monthly: parsePositiveInt(process.env.TAVILY_MONTHLY_LIMIT, 900),
+  },
+};
+
+export const PROVIDER_LABELS: Record<ProviderKey, string> = {
+  groq: "Groq (LLM)",
+  tavily: "Tavily (web search)",
 };
 
 function parsePositiveInt(value: string | undefined, fallback: number): number {
@@ -31,25 +64,12 @@ function parsePositiveInt(value: string | undefined, fallback: number): number {
   return Number.isFinite(n) && n >= 0 ? n : fallback;
 }
 
-/**
- * AI generation goes through the Vercel AI Gateway, which is zero-config on
- * Vercel and in v0 previews (OIDC-based auth). It only needs an explicit key
- * when running locally outside that environment. We therefore treat AI as
- * available unless we're clearly running locally without a key.
- */
+/** LLM generation is available when a Groq API key is configured. */
 export function hasAI() {
-  if (env.AI_GATEWAY_API_KEY) return true;
-  // On Vercel (including preview/production) OIDC provides auth automatically.
-  if (process.env.VERCEL) return true;
-  // v0 preview / Vercel runtime also injects an OIDC token.
-  if (process.env.VERCEL_OIDC_TOKEN) return true;
-  return false;
+  return Boolean(env.GROQ_API_KEY);
 }
 
-/**
- * Web search now runs through the AI Gateway (Perplexity Sonar), so it is
- * available exactly when AI generation is — no separate search API key needed.
- */
+/** Web research is available when a Tavily API key is configured. */
 export function hasSearch() {
-  return hasAI();
+  return Boolean(env.TAVILY_API_KEY);
 }

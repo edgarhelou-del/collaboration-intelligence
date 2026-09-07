@@ -285,7 +285,7 @@ export async function runPainResearcher(agentRunId: string): Promise<{
 }> {
   if (!hasSearch()) {
     throw new AgentDependencyError(
-      "Web search is unavailable (the AI Gateway is not configured). The Pain Researcher requires live web search and will not fabricate signals without it."
+      "Web search is unavailable (Tavily is not configured — add TAVILY_API_KEY). The Pain Researcher requires live web search and will not fabricate signals without it."
     );
   }
 
@@ -299,11 +299,10 @@ export async function runPainResearcher(agentRunId: string): Promise<{
   const queries = pickQueries(env.RESEARCH_MAX_QUERIES, priorRuns);
   const allResults: (SearchResult & { query: string })[] = [];
 
-  // Each search is now a Perplexity Sonar call on the AI Gateway. We launch
-  // them together for convenience, but the shared global throttle serializes
-  // the actual Gateway calls and spaces them under the free-tier per-minute
-  // limit, so they no longer burst into 429s. allSettled keeps one failed
-  // query from aborting the rest; failures are recorded as warnings.
+  // Each search is a Tavily REST call (its own free tier, no LLM credit). We
+  // launch them together; Tavily's throttle spaces the calls so the free tier
+  // isn't bursted. allSettled keeps one failed query from aborting the rest;
+  // failures are recorded as warnings.
   const searches = await Promise.allSettled(
     queries.map((query) => webSearch(query, { maxResults: 8 }))
   );
@@ -470,7 +469,7 @@ export async function runPainResearcher(agentRunId: string): Promise<{
 
   // Aggregate patterns immediately, but SKIP the per-pattern AI synthesis here:
   // running one synthesis call per pattern right after the extraction call would
-  // burst past the AI Gateway free-tier per-minute rate limit and fail the run.
+  // burst past Groq's free-tier per-minute rate limit and fail the run.
   // Synthesis is a best-effort nice-to-have, refreshed separately via
   // POST /api/patterns/recompute?synthesis=1 when budget allows.
   await recomputePatterns({ skipSynthesis: true });

@@ -1,6 +1,6 @@
 import { hasAI, hasSearch, env } from "@/lib/env";
 import { prisma } from "@/lib/prisma";
-import { getAiUsageToday } from "@/lib/usage";
+import { getAllUsage, type ProviderUsage, type WindowUsage } from "@/lib/usage";
 
 export const dynamic = "force-dynamic";
 
@@ -12,20 +12,23 @@ export default async function SettingsPage() {
     dbConnected = false;
   }
 
-  let usage = { count: 0, limit: env.AI_DAILY_CALL_LIMIT };
+  let usage: ProviderUsage[] = [];
   try {
-    usage = await getAiUsageToday();
+    usage = await getAllUsage();
   } catch {
-    // usage table unavailable — fall back to defaults
+    // usage table unavailable — leave empty, panel shows a note
   }
-  const capDisabled = usage.limit === 0;
-  const remaining = capDisabled ? Infinity : Math.max(0, usage.limit - usage.count);
 
   return (
     <div className="px-8 py-8 sm:px-12">
       <header className="border-b border-line pb-6">
         <p className="kicker">Configuration</p>
         <h1 className="mt-1 font-serif text-2xl font-semibold text-ink">Settings</h1>
+        <p className="mt-2 max-w-2xl text-sm text-muted">
+          This app runs entirely on free tiers with no paid AI credit: Groq powers the LLM work and
+          Tavily powers web search. Usage is metered and automatically paused before either free tier
+          is exceeded.
+        </p>
       </header>
 
       <section className="mt-8">
@@ -33,16 +36,16 @@ export default async function SettingsPage() {
         <ul className="panel divide-y divide-line">
           <StatusRow label="Database (PostgreSQL)" ok={dbConnected} okText="Connected" badText="Not connected" />
           <StatusRow
-            label="AI generation (Vercel AI Gateway)"
+            label="LLM (Groq)"
             ok={hasAI()}
-            okText="Configured — zero-config on Vercel/v0"
-            badText="Not configured — set AI_GATEWAY_API_KEY for local dev"
+            okText={`Configured — model ${env.GROQ_MODEL}`}
+            badText="Not configured — add a free GROQ_API_KEY from console.groq.com"
           />
           <StatusRow
-            label="Web research (Perplexity Sonar via AI Gateway)"
+            label="Web research (Tavily)"
             ok={hasSearch()}
-            okText="Available — zero-config on Vercel/v0"
-            badText="Unavailable — Pain Researcher will report incomplete research rather than fabricate signals"
+            okText="Configured — free web search enabled"
+            badText="Not configured — add a free TAVILY_API_KEY from tavily.com"
           />
           <StatusRow
             label="Cron protection (CRON_SECRET)"
@@ -54,47 +57,79 @@ export default async function SettingsPage() {
       </section>
 
       <section className="mt-8">
-        <p className="label mb-3">Model</p>
-        <p className="text-sm text-ink">{env.AI_MODEL}</p>
-        <p className="mt-1 text-xs text-muted">Override with the AI_MODEL environment variable (Gateway provider/model id).</p>
-      </section>
-
-      <section className="mt-8">
-        <p className="label mb-3">AI usage today (UTC)</p>
-        {capDisabled ? (
-          <p className="text-sm text-ink">
-            {usage.count} model calls today &middot; <span className="text-muted">no daily cap set</span>
-          </p>
+        <p className="label mb-3">Free-tier usage &amp; limits</p>
+        {usage.length === 0 ? (
+          <p className="text-sm text-muted">Usage data is unavailable right now.</p>
         ) : (
-          <>
-            <p className="text-sm text-ink">
-              {usage.count} / {usage.limit} model calls used &middot;{" "}
-              <span className="text-muted">{remaining} remaining</span>
-            </p>
-            <div className="mt-2 h-1.5 w-full max-w-md overflow-hidden rounded-full bg-line/40">
-              <div
-                className={`h-full rounded-full ${remaining === 0 ? "bg-signal-strong" : "bg-signal-interesting"}`}
-                style={{ width: `${Math.min(100, (usage.count / usage.limit) * 100)}%` }}
-              />
-            </div>
-          </>
+          <div className="grid gap-4 sm:grid-cols-2">
+            {usage.map((u) => (
+              <ProviderUsageCard key={u.provider} usage={u} />
+            ))}
+          </div>
         )}
-        <p className="mt-2 text-xs text-muted">
-          A hard cap that keeps usage within the AI Gateway free tier. Resets at 00:00 UTC. Change it with the
-          AI_DAILY_CALL_LIMIT environment variable (set to 0 to disable once you add paid Gateway credits).
+        <p className="mt-3 text-xs text-muted">
+          Windows are rolling: daily = today (UTC), weekly = last 7 days, monthly = last 30 days. When
+          any window with a limit is reached, runs pause automatically until it resets — no charges are
+          ever incurred. Adjust a cap with its env var, e.g.{" "}
+          <code className="rounded bg-line/40 px-1">GROQ_DAILY_LIMIT</code> or{" "}
+          <code className="rounded bg-line/40 px-1">TAVILY_MONTHLY_LIMIT</code> (set to 0 to disable a
+          window).
         </p>
       </section>
 
       <section className="mt-8 pb-16">
         <p className="label mb-3">Scheduling</p>
         <p className="text-sm text-ink/90">
-          Agents run manually today, from the dashboard&rsquo;s &ldquo;Run Both Agents&rdquo; button. To automate daily
-          runs, enable the cron job already defined in <code className="rounded bg-line/40 px-1">vercel.json</code>{" "}
-          (calls <code className="rounded bg-line/40 px-1">/api/agents/run-all</code> once a day) after deploying to
-          Vercel, and set <code className="rounded bg-line/40 px-1">CRON_SECRET</code> to lock that endpoint down to
-          Vercel Cron.
+          Agents run manually today, from the dashboard&rsquo;s run buttons. To automate daily runs,
+          enable the cron job already defined in <code className="rounded bg-line/40 px-1">vercel.json</code>{" "}
+          (calls <code className="rounded bg-line/40 px-1">/api/agents/run-all</code> once a day) after
+          deploying to Vercel, and set <code className="rounded bg-line/40 px-1">CRON_SECRET</code> to
+          lock that endpoint down to Vercel Cron.
         </p>
       </section>
+    </div>
+  );
+}
+
+function ProviderUsageCard({ usage }: { usage: ProviderUsage }) {
+  return (
+    <div className="panel p-4">
+      <p className="text-sm font-medium text-ink">{usage.label}</p>
+      <div className="mt-3 space-y-3">
+        <UsageBar name="Daily" window={usage.daily} />
+        <UsageBar name="Weekly" window={usage.weekly} />
+        <UsageBar name="Monthly" window={usage.monthly} />
+      </div>
+    </div>
+  );
+}
+
+function UsageBar({ name, window }: { name: string; window: WindowUsage }) {
+  const disabled = window.limit === 0;
+  const pct = disabled ? 0 : Math.min(100, (window.count / window.limit) * 100);
+  const atLimit = !disabled && window.count >= window.limit;
+  return (
+    <div>
+      <div className="flex items-baseline justify-between gap-2 text-xs">
+        <span className="text-muted">{name}</span>
+        <span className={atLimit ? "text-signal-strong" : "text-ink"}>
+          {disabled ? (
+            <>
+              {window.count} <span className="text-muted">/ no cap</span>
+            </>
+          ) : (
+            <>
+              {window.count} / {window.limit}
+            </>
+          )}
+        </span>
+      </div>
+      <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-line/40">
+        <div
+          className={`h-full rounded-full ${atLimit ? "bg-signal-strong" : "bg-signal-interesting"}`}
+          style={{ width: `${pct}%` }}
+        />
+      </div>
     </div>
   );
 }

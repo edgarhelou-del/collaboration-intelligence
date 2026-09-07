@@ -308,7 +308,7 @@ export async function runBioAdaptability(agentRunId: string): Promise<{
 }> {
   if (!hasSearch()) {
     throw new AgentDependencyError(
-      "Web search is unavailable (the AI Gateway is not configured). The Bioadaptability Researcher requires live web search and will not fabricate findings without it."
+      "Web search is unavailable (Tavily is not configured — add TAVILY_API_KEY). The Bioadaptability Researcher requires live web search and will not fabricate findings without it."
     );
   }
 
@@ -319,8 +319,8 @@ export async function runBioAdaptability(agentRunId: string): Promise<{
   const queries = pickQueries(priorRuns).slice(0, env.RESEARCH_MAX_QUERIES);
   const allResults: (SearchResult & { query: string })[] = [];
 
-  // Run searches concurrently (independent, no AI Gateway involved) so 10
-  // advanced queries collapse to ~2s instead of ~20s and never blow the timeout.
+  // Run searches together (independent Tavily REST calls, no LLM credit); the
+  // Tavily throttle spaces them so the free tier isn't bursted.
   const searches = await Promise.allSettled(queries.map((query) => webSearch(query, { maxResults: 8 })));
   searches.forEach((settled, i) => {
     const query = queries[i];
@@ -440,7 +440,7 @@ export async function runBioAdaptability(agentRunId: string): Promise<{
   }
 
   // Aggregate immediately, skipping per-pattern AI synthesis here to avoid
-  // bursting past the AI Gateway per-minute rate limit right after extraction.
+  // bursting past Groq's per-minute rate limit right after extraction.
   await recomputeBioPatterns({ skipSynthesis: true });
 
   return { savedCount, skippedDuplicates, warnings };
