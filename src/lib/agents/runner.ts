@@ -12,6 +12,31 @@ export type AgentRunOutcome = {
   error?: string;
 };
 
+// A real run finishes in well under this. Any run still marked RUNNING past it
+// is an orphan — the process was restarted (dev server / cron) mid-run and the
+// row never got finalized. Left alone these accumulate forever and, worse, make
+// the UI's status polling wait on a run that will never complete.
+const STALE_RUN_MS = 8 * 60 * 1000;
+
+/**
+ * Mark abandoned RUNNING runs as FAILED so they stop hanging status polling and
+ * no longer pollute run history. Safe to call often; it only touches rows that
+ * are demonstrably too old to still be running.
+ */
+export async function reconcileStaleRuns(): Promise<number> {
+  const cutoff = new Date(Date.now() - STALE_RUN_MS);
+  const { count } = await prisma.agentRun.updateMany({
+    where: { status: "RUNNING", startedAt: { lt: cutoff } },
+    data: {
+      status: "FAILED",
+      finishedAt: new Date(),
+      error: "Run did not finish (the server restarted or it timed out). Marked stale automatically.",
+      summary: "Run failed.",
+    },
+  });
+  return count;
+}
+
 export async function runContent(): Promise<AgentRunOutcome> {
   const run = await prisma.agentRun.create({ data: { agent: "CONTENT" } });
   try {

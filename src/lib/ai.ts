@@ -3,6 +3,7 @@ import { generateText as aiGenerateText } from "ai";
 import { env, hasAI } from "./env";
 import { AgentDependencyError } from "./agents/errors";
 import { reserveAiCall } from "./usage";
+import { throttleGateway } from "./gatewayThrottle";
 
 /**
  * Calls the model through the Vercel AI Gateway and returns raw text.
@@ -29,16 +30,20 @@ export async function generateText(params: {
   await reserveAiCall();
 
   try {
-    const { text } = await aiGenerateText({
-      model: env.AI_MODEL,
-      maxOutputTokens: params.maxTokens ?? 4096,
-      system: params.system,
-      prompt: params.prompt,
-      // The AI Gateway free tier is rate-limited per minute. The SDK retries
-      // with exponential backoff (~2s, 4s, 8s, 16s, 32s), so 5 retries ride
-      // out a full ~1-minute window instead of failing fast on a burst.
-      maxRetries: 5,
-    });
+    // Route through the shared global throttle so this call is spaced out from
+    // every other Gateway call (search + generation) and we stay under the
+    // free-tier per-minute limit. maxRetries is modest (3 → ~2s,4s,8s backoff)
+    // because the throttle already prevents the bursts that caused 429s, so a
+    // call that still fails should fail fast (~15s) instead of retrying ~60s.
+    const { text } = await throttleGateway(() =>
+      aiGenerateText({
+        model: env.AI_MODEL,
+        maxOutputTokens: params.maxTokens ?? 4096,
+        system: params.system,
+        prompt: params.prompt,
+        maxRetries: 3,
+      })
+    );
     if (!text || !text.trim()) {
       throw new AgentDependencyError("Model returned no text content.");
     }
@@ -50,9 +55,10 @@ export async function generateText(params: {
     // than a generic failure, so the UI can tell the user to simply retry soon.
     if (/rate.?limit|429|too many requests/i.test(message)) {
       throw new AgentDependencyError(
-        "The AI Gateway free tier is temporarily rate-limited. No changes were lost — " +
-          "wait about a minute and run the agents again. For uninterrupted runs, add paid " +
-          "AI Gateway credits in your Vercel dashboard."
+        "The AI Gateway rejected the request (429). This usually means the free-tier " +
+          "credit is exhausted — add AI Gateway credits in your Vercel dashboard " +
+          "(Vercel → AI Gateway → Billing) to resume runs. If you just added credit, wait a " +
+          "minute and run again."
       );
     }
     throw new AgentDependencyError(`AI Gateway call failed: ${message}`);
