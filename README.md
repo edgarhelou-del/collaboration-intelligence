@@ -1,3 +1,8 @@
+> **Nota:** este repositorio también contiene, en [`/keynote`](./keynote),
+> un producto independiente sin relación con la app de abajo: una
+> presentación web navegable en pantalla completa ("Bioadaptabilidad en el
+> mundo corporativo", para CENIT). Ver [`keynote/README.md`](./keynote/README.md).
+
 # Inteligencia Natural — Collaboration Intelligence Radar
 
 An intelligence engine, not a content generator. Two agents continuously

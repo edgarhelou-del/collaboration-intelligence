@@ -1,0 +1,10 @@
+{
+  "name": "bioadaptabilidad-pptx-build",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Genera Bioadaptabilidad_CENIT.pptx a partir de ../data.js",
+  "dependencies": {
+    "pptxgenjs": "^3.12.0",
+    "sharp": "^0.33.0"
+  }
+}
