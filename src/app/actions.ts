@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 import { prisma } from "@/lib/prisma";
 import {
   runBoth,
@@ -13,14 +14,17 @@ import type { AgentType, BioStatus, ContentStatus, SignalStatus } from "@prisma/
 
 export type RunTarget = "all" | "content" | "pain-research" | "bio-adaptability";
 
-// Retain references to detached background work so it isn't garbage-collected
-// while it runs after the triggering request has already responded.
-const inFlight = new Set<Promise<unknown>>();
 function launch(work: () => Promise<unknown>) {
-  const p = work()
-    .catch((err) => console.error("[v0] background agent run failed:", err))
-    .finally(() => inFlight.delete(p));
-  inFlight.add(p);
+  // `after` asks Next.js/Vercel to keep the function alive after the Server
+  // Action response is sent. A module-level Promise set is not sufficient on
+  // serverless runtimes because the instance may be frozen immediately.
+  after(async () => {
+    try {
+      await work();
+    } catch (err) {
+      console.error("[kolab] background agent run failed:", err);
+    }
+  });
 }
 
 // Start an agent run WITHOUT awaiting it. Long agent runs (minutes of web
@@ -34,7 +38,6 @@ export async function startAgentRun(
   // Clear out any orphaned RUNNING runs from a prior restart so they don't
   // linger in history or interfere with fresh runs.
   await reconcileStaleRuns();
-  const baseline = new Date();
   const agents: AgentType[] =
     target === "content"
       ? ["CONTENT"]
@@ -43,6 +46,16 @@ export async function startAgentRun(
         : target === "bio-adaptability"
           ? ["BIO_ADAPTABILITY"]
           : ["CONTENT", "PAIN_RESEARCH", "BIO_ADAPTABILITY"];
+
+  const activeRun = await prisma.agentRun.findFirst({
+    where: { agent: { in: agents }, status: "RUNNING" },
+    select: { agent: true },
+  });
+  if (activeRun) {
+    throw new Error(`${activeRun.agent.replaceAll("_", " ")} is already running. Check History for progress.`);
+  }
+
+  const baseline = new Date();
 
   if (target === "content") launch(runContent);
   else if (target === "pain-research") launch(runPainResearch);

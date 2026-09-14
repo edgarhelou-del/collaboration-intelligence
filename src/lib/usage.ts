@@ -15,6 +15,10 @@ function dayNDaysAgo(n: number): string {
   return utcDay(d);
 }
 
+function usageKey(provider: ProviderKey, day: string = utcDay()): string {
+  return `${provider}:${day}`;
+}
+
 export type WindowUsage = { count: number; limit: number };
 export type ProviderUsage = {
   provider: ProviderKey;
@@ -35,8 +39,9 @@ async function windowCounts(
   const weekCut = dayNDaysAgo(6);
   const today = utcDay();
 
+  const prefix = `${provider}:`;
   const rows = await prisma.aiUsage.findMany({
-    where: { provider, day: { gte: monthCut } },
+    where: { day: { startsWith: prefix, gte: usageKey(provider, monthCut) } },
     select: { day: true, count: true },
   });
 
@@ -44,9 +49,11 @@ async function windowCounts(
   let weekly = 0;
   let monthly = 0;
   for (const r of rows) {
+    const date = r.day.slice(prefix.length);
+    if (date < monthCut) continue;
     monthly += r.count;
-    if (r.day >= weekCut) weekly += r.count;
-    if (r.day === today) daily += r.count;
+    if (date >= weekCut) weekly += r.count;
+    if (date === today) daily += r.count;
   }
   return { daily, weekly, monthly };
 }
@@ -73,8 +80,9 @@ export async function getAllUsage(): Promise<ProviderUsage[]> {
  * The automatic brake. Reserves one call against a provider's budget, but only
  * after verifying every enabled window is still under its cap. When a window is
  * at its limit it throws AgentDependencyError (so it surfaces like any missing
- * dependency) and NO call is spent — keeping the app strictly inside the free
- * tier. A window with limit 0 is treated as disabled.
+ * dependency) and no provider call is made. A window with limit 0 is treated
+ * as disabled. These counters are an application guardrail; provider-side
+ * quotas and spend controls remain authoritative.
  */
 export async function reserveCall(provider: ProviderKey): Promise<void> {
   const c = await windowCounts(provider);
@@ -90,17 +98,17 @@ export async function reserveCall(provider: ProviderKey): Promise<void> {
   for (const w of windows) {
     if (w.limit > 0 && w.count >= w.limit) {
       throw new AgentDependencyError(
-        `${label} ${w.name} free-tier limit reached (${w.count}/${w.limit}). Runs are paused ` +
-          `automatically to stay within the free tier — no charges are incurred. This window ` +
-          `resets on its own; to allow more now, raise ${w.envVar}.`
+        `${label} ${w.name} usage guardrail reached (${w.count}/${w.limit}). Runs are paused ` +
+          `until this window resets; to allow more calls now, raise ${w.envVar} and verify the ` +
+          `provider-side quota or spend control first.`
       );
     }
   }
 
-  const day = utcDay();
+  const day = usageKey(provider);
   await prisma.aiUsage.upsert({
-    where: { provider_day: { provider, day } },
-    create: { provider, day, count: 1 },
+    where: { day },
+    create: { day, count: 1 },
     update: { count: { increment: 1 } },
   });
 }

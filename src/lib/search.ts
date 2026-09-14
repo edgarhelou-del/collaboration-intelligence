@@ -12,14 +12,13 @@ export type SearchResult = {
 };
 
 /**
- * Live web search backed by Tavily's REST API (tavily.com), which has its own
- * free tier — so web research no longer consumes any LLM/Gateway credit. Tavily
- * returns real, currently-accessible pages with short content snippets, which
- * the researchers then pass to the LLM for extraction.
+ * Live web search backed by Tavily's REST API. It is called directly, so web
+ * research does not consume an LLM/Gateway call. Tavily returns source URLs
+ * with short content snippets, which the researchers pass to the LLM.
  *
- * Uses "basic" search depth (1 credit/search) rather than "advanced"
- * (2 credits) to stretch the free tier. Each search counts against the Tavily
- * budget meter (see usage.ts) and is spaced by its own throttle.
+ * Uses "basic" search depth to limit provider usage. Each search counts
+ * against the Tavily application meter (see usage.ts) and is spaced by its own
+ * throttle.
  */
 const TAVILY_ENDPOINT = "https://api.tavily.com/search";
 
@@ -40,12 +39,11 @@ export async function webSearch(
 ): Promise<SearchResult[]> {
   if (!hasSearch()) {
     throw new AgentDependencyError(
-      "Web search is not configured. Add a free Tavily API key (TAVILY_API_KEY) from tavily.com " +
-        "to enable web research."
+      "Web search is not configured. Add a Tavily API key as TAVILY_API_KEY."
     );
   }
 
-  // Enforce the Tavily free-tier budget BEFORE spending a search credit.
+  // Reserve against the application guardrails before making a provider call.
   await reserveCall("tavily");
 
   const maxResults = opts?.maxResults ?? 8;
@@ -68,6 +66,7 @@ export async function webSearch(
           Authorization: `Bearer ${env.TAVILY_API_KEY}`,
         },
         body: JSON.stringify(body),
+        signal: AbortSignal.timeout(env.TAVILY_TIMEOUT_MS),
       })
     );
 
@@ -75,13 +74,13 @@ export async function webSearch(
       const detail = await res.text().catch(() => "");
       if (res.status === 429) {
         throw new AgentDependencyError(
-          "Tavily rate/credit limit reached. Web research is paused to stay within the free " +
-            "tier; it resets automatically. See the usage panel in Settings."
+          "Tavily rate or credit limit reached. Web research is paused; verify the provider " +
+            "quota and the usage panel in Settings before retrying."
         );
       }
       if (res.status === 401 || res.status === 403) {
         throw new AgentDependencyError(
-          "Tavily rejected the API key. Check that TAVILY_API_KEY is a valid free key from tavily.com."
+          "Tavily rejected the API key. Check that TAVILY_API_KEY is valid."
         );
       }
       throw new AgentDependencyError(
@@ -93,6 +92,11 @@ export async function webSearch(
   } catch (err) {
     if (err instanceof AgentDependencyError) throw err;
     const message = err instanceof Error ? err.message : String(err);
+    if (/abort|timed?\s*out|timeout/i.test(message)) {
+      throw new AgentDependencyError(
+        `Tavily did not respond within ${Math.round(env.TAVILY_TIMEOUT_MS / 1000)} seconds. Retry the run shortly.`
+      );
+    }
     throw new AgentDependencyError(`Web search failed: ${message}`);
   }
 

@@ -4,7 +4,8 @@ import { pct, titleCase } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
-export default async function BioPatternsPage({ searchParams }: { searchParams: { sort?: string } }) {
+export default async function BioPatternsPage(props: { searchParams: Promise<{ sort?: string }> }) {
+  const searchParams = await props.searchParams;
   const sort = searchParams.sort === "growing" ? "growing" : "frequent";
   const patterns = await getBioPatterns(sort);
 

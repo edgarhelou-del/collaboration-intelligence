@@ -6,7 +6,8 @@ import ScorePill from "@/components/ScorePill";
 
 export const dynamic = "force-dynamic";
 
-export default async function BioPatternDetailPage({ params }: { params: { key: string } }) {
+export default async function BioPatternDetailPage(props: { params: Promise<{ key: string }> }) {
+  const params = await props.params;
   const pattern = await getBioPatternByKey(params.key);
   if (!pattern) notFound();
 

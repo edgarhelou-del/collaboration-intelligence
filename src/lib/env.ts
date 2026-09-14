@@ -1,28 +1,28 @@
 import "server-only";
 
 /**
- * Free-stack configuration.
+ * Provider configuration.
  *
- * The app runs entirely on free tiers with NO Vercel AI Gateway credit:
+ * The app uses provider APIs directly rather than Vercel AI Gateway:
  *   - LLM (extraction + content generation) → Groq (GROQ_API_KEY)
  *   - Web search                            → Tavily (TAVILY_API_KEY)
  *
- * Both providers have their own free quotas, so usage is metered per provider
- * across daily / weekly / monthly windows and hard-capped (see usage.ts) to
- * guarantee the app never spends money.
+ * Usage is metered per provider across daily / weekly / monthly windows and
+ * capped by configurable application guardrails (see usage.ts). Provider-side
+ * quotas, billing and spend controls remain authoritative.
  */
 export const env = {
-  // Groq model id (see console.groq.com/docs/models). The default is a capable
-  // model available on Groq's free tier. Override with GROQ_MODEL.
+  // Groq model id (see console.groq.com/docs/models). Override with GROQ_MODEL.
   GROQ_MODEL: process.env.GROQ_MODEL || "llama-3.3-70b-versatile",
-  // Groq API key — create a free key at console.groq.com. Required for any LLM
-  // work (extraction, content). No credit card needed.
+  // Groq API key. Required for any LLM work (extraction, content).
   GROQ_API_KEY: process.env.GROQ_API_KEY ?? "",
-  // Tavily API key — free web-search tier at tavily.com. Required for research.
+  // Tavily API key. Required for research.
   TAVILY_API_KEY: process.env.TAVILY_API_KEY ?? "",
   CRON_SECRET: process.env.CRON_SECRET ?? "",
-  // Max web searches each researcher runs per pass. Kept modest so a full run
-  // sips the Tavily free tier; raise with RESEARCH_MAX_QUERIES.
+  GROQ_TIMEOUT_MS: parsePositiveInt(process.env.GROQ_TIMEOUT_MS, 45_000),
+  TAVILY_TIMEOUT_MS: parsePositiveInt(process.env.TAVILY_TIMEOUT_MS, 20_000),
+  // Max web searches each researcher runs per pass. Keep this modest to limit
+  // latency and provider usage; raise with RESEARCH_MAX_QUERIES.
   RESEARCH_MAX_QUERIES: parsePositiveInt(process.env.RESEARCH_MAX_QUERIES, 4),
 };
 
@@ -31,14 +31,13 @@ export type ProviderKey = "groq" | "tavily";
 export type WindowLimits = { daily: number; weekly: number; monthly: number };
 
 /**
- * Free-tier-safe caps per provider, for each rolling window. A cap of 0
- * disables that window. The automatic brake in usage.ts pauses runs when ANY
- * enabled window for a provider is reached, so the app stays inside the free
- * tier. All are env-overridable, e.g. GROQ_DAILY_LIMIT, TAVILY_MONTHLY_LIMIT.
+ * Application caps per provider, for each rolling window. A cap of 0 disables
+ * that window. The automatic brake in usage.ts pauses runs when any enabled
+ * window is reached. All are env-overridable, e.g. GROQ_DAILY_LIMIT or
+ * TAVILY_MONTHLY_LIMIT.
  *
- * Defaults sit comfortably under each provider's published free allowance:
- *   - Groq free tier is ~1,000 requests/day → daily 500 leaves wide margin.
- *   - Tavily free tier is ~1,000 credits/month → monthly 900 stays under it.
+ * Defaults are conservative application guardrails. Provider quotas vary by
+ * account, model and plan, so configure provider-side spend limits as well.
  */
 export const USAGE_LIMITS: Record<ProviderKey, WindowLimits> = {
   groq: {

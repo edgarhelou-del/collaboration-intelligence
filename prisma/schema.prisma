@@ -1,8 +1,9 @@
 // Inteligencia Natural — Collaboration Intelligence Radar
 //
-// Two agents accumulate intelligence over time:
+// Three agents accumulate intelligence over time:
 //   - Content Agent writes ContentItem rows.
 //   - Pain Researcher writes Signal rows (backed by Company / Person / Source).
+//   - Bioadaptability Researcher writes BioFinding rows.
 // Signal rows are periodically re-aggregated into Pattern rows, which is the
 // product's real asset: not the daily content, but the accumulated,
 // evolving read on how collaboration is breaking down across organizations.
@@ -31,18 +32,16 @@ model User {
 }
 
 // ---------------------------------------------------------------------------
-// Usage meter — one row per provider per UTC day. Aggregated into rolling
-// daily/weekly/monthly windows to enforce hard free-tier caps per provider
-// (Groq for the LLM, Tavily for web search) so the app never spends money.
+// Usage meter — one row per provider per UTC day. The provider is namespaced
+// into the key (`groq:YYYY-MM-DD`, `tavily:YYYY-MM-DD`) so this remains fully
+// compatible with the table already deployed by the previous version.
 // ---------------------------------------------------------------------------
 
 model AiUsage {
-  provider  String // "groq" | "tavily"
-  day       String // UTC date, "YYYY-MM-DD"
-  count     Int      @default(0) // calls made to that provider that day
+  day       String   @id // `<provider>:YYYY-MM-DD`; legacy rows remain valid
+  count     Int      @default(0)
   updatedAt DateTime @updatedAt
 
-  @@id([provider, day])
   @@map("ai_usage")
 }
 

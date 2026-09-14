@@ -13,10 +13,12 @@ export default async function SettingsPage() {
   }
 
   let usage: ProviderUsage[] = [];
-  try {
-    usage = await getAllUsage();
-  } catch {
-    // usage table unavailable — leave empty, panel shows a note
+  if (dbConnected) {
+    try {
+      usage = await getAllUsage();
+    } catch {
+      // usage table unavailable — leave empty, panel shows a note
+    }
   }
 
   return (
@@ -25,9 +27,8 @@ export default async function SettingsPage() {
         <p className="kicker">Configuration</p>
         <h1 className="mt-1 font-serif text-2xl font-semibold text-ink">Settings</h1>
         <p className="mt-2 max-w-2xl text-sm text-muted">
-          This app runs entirely on free tiers with no paid AI credit: Groq powers the LLM work and
-          Tavily powers web search. Usage is metered and automatically paused before either free tier
-          is exceeded.
+          Groq powers the LLM work and Tavily powers web search. Local usage guardrails pause new calls
+          at the configured thresholds; provider-side billing and spend controls remain the source of truth.
         </p>
       </header>
 
@@ -69,8 +70,8 @@ export default async function SettingsPage() {
         )}
         <p className="mt-3 text-xs text-muted">
           Windows are rolling: daily = today (UTC), weekly = last 7 days, monthly = last 30 days. When
-          any window with a limit is reached, runs pause automatically until it resets — no charges are
-          ever incurred. Adjust a cap with its env var, e.g.{" "}
+          any window with a limit is reached, runs pause automatically until it resets. Adjust a cap with
+          its env var, e.g.{" "}
           <code className="rounded bg-line/40 px-1">GROQ_DAILY_LIMIT</code> or{" "}
           <code className="rounded bg-line/40 px-1">TAVILY_MONTHLY_LIMIT</code> (set to 0 to disable a
           window).

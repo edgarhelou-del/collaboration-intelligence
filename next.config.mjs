@@ -1,6 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  poweredByHeader: false,
   // Served under kolabestudio.com/radar. basePath makes Next.js prefix every
   // route, internal <Link>, and asset (/radar/_next/...) automatically, so the
   // app works both directly (collaboration-intelligence.vercel.app/radar) and

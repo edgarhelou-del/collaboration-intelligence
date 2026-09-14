@@ -1,9 +1,9 @@
-# Inteligencia Natural — Collaboration Intelligence Radar
+# KOLAB — Collaboration Intelligence Radar
 
-An intelligence engine, not a content generator. Two agents continuously
-scan for how human collaboration is actually breaking down inside real
-organizations, and the system accumulates that into a radar: recurring
-patterns, their growth, who is affected, and what it means.
+An intelligence engine, not a content generator. Three agents scan how human
+collaboration and bioadaptability are evolving inside real organizations, and
+the system accumulates that into a radar: recurring patterns, their growth,
+who is affected, and what it means.
 
 The accumulated intelligence — signals and patterns over time — is the
 product. Daily content is a byproduct of it, not the goal.
@@ -20,6 +20,9 @@ product. Daily content is a byproduct of it, not the goal.
   problem (silos, trust, communication breakdown, psychological safety,
   human-AI collaboration, etc.), scores each one 0–100, and stores it as
   a **signal**.
+- **Bioadaptability Researcher** finds attributed practitioner insights and
+  research about adaptation at individual, team and organizational levels,
+  scores them, and groups them into emerging patterns.
 - Signals are grouped into **emerging patterns** (e.g. "cross-functional
   silos") and re-aggregated on every Pain Researcher run: signal count,
   growth vs. the previous 30 days, most affected industries/countries/
@@ -33,29 +36,31 @@ product. Daily content is a byproduct of it, not the goal.
 
 ## 2. Architecture
 
-Deliberately Vercel-friendly: no queues, no containers, no separate
-worker service for the MVP.
+Deliberately Vercel-friendly: no containers or separate worker service for the
+MVP. Long Server Actions use Next.js `after()` so the response can return while
+Vercel keeps the scheduled work alive within the configured function duration.
 
-- **Next.js 14 (App Router) + TypeScript + React + Tailwind** — one
+- **Next.js 16 (App Router) + TypeScript + React 19 + Tailwind** — one
   deployable app, server components for all data-heavy pages, Server
   Actions for in-app mutations (approve content, change a signal's
   status, trigger an agent run from the dashboard).
-- **PostgreSQL + Prisma** as the data-access layer. All reads go through
-  `src/lib/data.ts`; nothing outside it calls Prisma directly, so the
-  provider can be swapped later without touching pages.
-- **Two independent agent modules** under `src/lib/agents/` (`contentAgent.ts`,
-  `painResearcher.ts`), orchestrated by `src/lib/agents/runner.ts`, which
+- **PostgreSQL + Prisma** as the data-access layer. Domain reads are centralized
+  in `src/lib/data.ts`; operational code also uses Prisma for run state, health
+  checks and provider usage metering.
+- **Three independent agent modules** under `src/lib/agents/`, orchestrated by
+  `src/lib/agents/runner.ts`, which
   logs every run to the `AgentRun` table (status, summary, errors) so a
-  failure is visible, not silent. If one agent fails, the other still
-  runs — see `runBoth()`, which uses `Promise.allSettled`.
-- **`src/lib/ai.ts`** wraps the Anthropic API (server-only, key never sent
+  failure is visible, not silent. `runBoth()` executes them sequentially to
+  avoid bursting provider rate limits, and one failure does not block the next.
+- **`src/lib/ai.ts`** wraps Groq through the Vercel AI SDK (server-only, key never sent
   to the browser). **`src/lib/search.ts`** wraps a web search provider
   (Tavily). Both throw a typed `AgentDependencyError` on failure, which
   the runner turns into a stored, user-visible error instead of a
   fabricated result.
 - **Public API routes** (`/api/agents/content`, `/api/agents/pain-research`,
-  `/api/agents/run-all`) exist for external/cron triggering and are
-  gated by `CRON_SECRET` when set. The dashboard's own "Run" buttons
+  `/api/agents/bio-adaptability`, `/api/agents/run-all`) exist for external/cron
+  triggering. Deployed builds disable them unless `CRON_SECRET` is configured.
+  The dashboard's own "Run" buttons
   don't call these — they use Server Actions (`src/app/actions.ts`) that
   invoke the same agent code in-process, so the UI never needs the
   secret.
@@ -66,8 +71,8 @@ src/app/            routes: / (dashboard), /content, /signals, /signals/[id],
 src/app/api/agents/  POST endpoints for external/cron triggering
 src/app/actions.ts   Server Actions used by the UI (run agents, approve
                      content, change signal status)
-src/lib/agents/      contentAgent.ts, painResearcher.ts, runner.ts, errors.ts
-src/lib/ai.ts        Anthropic wrapper
+src/lib/agents/      the three researchers, runner.ts and typed errors
+src/lib/ai.ts        Groq wrapper through the Vercel AI SDK
 src/lib/search.ts    web search wrapper (Tavily)
 src/lib/scoring.ts   deterministic 0–100 signal scoring
 src/lib/patterns.ts  signal → pattern aggregation + AI synthesis
@@ -82,12 +87,12 @@ prisma/schema.prisma the full data model
 
 1. Reads the top emerging patterns and the last 10 published ideas
    (for deduplication).
-2. When the AI Gateway is available, runs one web search (Perplexity Sonar)
+2. When Tavily is configured, runs one live web search
    for recent research related to the top pattern; those snippets are the *only* things it
    is allowed to cite as FACT (with a source URL). Anything else is
    labeled INTERPRETATION or HYPOTHESIS — never presented as a verified
    citation.
-3. Calls Claude for structured JSON output, validated with `zod`.
+3. Calls the configured Groq model for structured JSON output, validated with `zod`.
 4. Checks the idea against recent ideas (Jaccard similarity on title
    tokens); regenerates once if it's a near-duplicate.
 5. Stores the result as a `ContentItem` (status `DRAFT`).
@@ -99,7 +104,7 @@ prisma/schema.prisma the full data model
    collaboration, …) and leadership roles (CEO, CHRO, COO, CIO, …).
 2. Searches the live web via Tavily. If search isn't configured or every
    query fails, the run fails loudly — it does not invent signals.
-3. Sends the search snippets to Claude with strict extraction rules: a
+3. Sends the search snippets to Groq with strict extraction rules: a
    real named person and real named company are required; a company
    "undergoing transformation" is never inferred to have a collaboration
    problem without actual evidence; quotes are only used verbatim when
@@ -117,7 +122,13 @@ prisma/schema.prisma the full data model
    `cross-functional-silos`, not just the broad "Silos" category), and
    regenerates the pattern's AI synthesis when its signal count changed.
 
-### Adding a third agent
+### Bioadaptability Researcher (`src/lib/agents/bioAdaptability.ts`)
+
+1. Rotates queries across the individual, team and organization levels.
+2. Uses Tavily for traceable, live sources and Groq for structured extraction.
+3. Deduplicates and scores findings, then aggregates them into bioadaptability patterns.
+
+### Adding another agent
 
 1. Add an `AgentType` enum value in `prisma/schema.prisma` and run
    `npm run db:push`.
@@ -127,7 +138,7 @@ prisma/schema.prisma the full data model
 3. Add a `runYourAgent()` wrapper in `src/lib/agents/runner.ts` that
    creates the `AgentRun`, calls it, and records the outcome — copy the
    pattern from `runContent()` / `runPainResearch()`.
-4. Wire it into `runBoth()` if it should run alongside the other two, and
+4. Wire it into `runBoth()` if it should run alongside the others, and
    add a route under `src/app/api/agents/` if it needs external
    triggering.
 
@@ -135,16 +146,15 @@ prisma/schema.prisma the full data model
 
 ```bash
 cp .env.example .env         # fill in DATABASE_URL at minimum
-npm install
+npm ci
 npm run db:push              # creates tables from prisma/schema.prisma
 npm run dev
 ```
 
-Open http://localhost:3000. Without AI Gateway access configured, the
+Open http://localhost:3000/radar. Without Groq/Tavily keys configured, the
 dashboard still works — clicking "Run All Agents" will honestly report
 that research/generation is unavailable rather than fabricating data
-(see `src/lib/agents/errors.ts`). Both AI generation and web search go
-through the Vercel AI Gateway, which is zero-config on Vercel/v0.
+(see `src/lib/agents/errors.ts`).
 
 ## 5. Environment variables
 
@@ -153,11 +163,17 @@ See `.env.example`. Required for full functionality:
 | Variable | Required | Purpose |
 |---|---|---|
 | `DATABASE_URL` | Yes | PostgreSQL connection string |
-| `AI_GATEWAY_API_KEY` | Local dev only | Zero-config on Vercel/v0 via OIDC; only needed when running locally outside Vercel |
-| `AI_MODEL` | No | Gateway `provider/model` id for generation. Defaults to `openai/gpt-4.1-mini` |
-| `SEARCH_MODEL` | No | Gateway `provider/model` id for web search. Defaults to `perplexity/sonar` |
+| `APP_DATABASE_URL` | No | Full override for the application database connection |
+| `APP_DB_NAME` | No | Isolated database name derived from `DATABASE_URL`; defaults to `collab_intel` |
+| `GROQ_API_KEY` | For agents | Server-side Groq key for extraction and generation |
+| `GROQ_MODEL` | No | Groq production model; defaults to `llama-3.3-70b-versatile` |
+| `TAVILY_API_KEY` | For research | Server-side key for live web search |
 | `RESEARCH_MAX_QUERIES` | No | Max web searches per researcher pass. Defaults to `4` (keep modest on the free tier) |
-| `CRON_SECRET` | No | Locks `/api/agents/*` to requests carrying this bearer token (Vercel Cron sends it automatically) |
+| `CRON_SECRET` | Yes in production | Locks `/api/agents/*` to requests carrying this bearer token |
+
+Timeouts, throttle intervals and provider usage guardrails are documented in
+`.env.example`. The app-side counters are operational guardrails; provider-side
+billing and spend controls remain authoritative.
 
 ## 6. Database setup
 
@@ -177,13 +193,14 @@ providers later never requires touching a page component.
 
 ## 7. Running the agents
 
-- **Manually, from the UI**: the dashboard's "Run Both Agents" button,
-  or the equivalent buttons on `/content` and `/signals`.
+- **Manually, from the UI**: the dashboard's "Run All Agents" button,
+  or the equivalent buttons on `/content`, `/signals` and `/adaptability`.
 - **Manually, via HTTP** (useful for cron/curl):
   ```bash
-  curl -X POST http://localhost:3000/api/agents/content
-  curl -X POST http://localhost:3000/api/agents/pain-research
-  curl -X POST http://localhost:3000/api/agents/run-all
+  curl -X POST http://localhost:3000/radar/api/agents/content
+  curl -X POST http://localhost:3000/radar/api/agents/pain-research
+  curl -X POST http://localhost:3000/radar/api/agents/bio-adaptability
+  curl -X POST http://localhost:3000/radar/api/agents/run-all
   ```
   If `CRON_SECRET` is set, add `-H "Authorization: Bearer $CRON_SECRET"`.
 
@@ -199,23 +216,28 @@ git push -u origin <branch-name>
 
 1. Import the GitHub repository in Vercel.
 2. Add the environment variables from `.env.example` in the project's
-   Vercel settings (`DATABASE_URL` is required; AI generation and web search
-   use the zero-config AI Gateway on Vercel, so no AI key is needed —
-   optionally `AI_MODEL`, `SEARCH_MODEL`, `RESEARCH_MAX_QUERIES`, `CRON_SECRET`).
+   Development, Preview and Production settings. `DATABASE_URL`, `GROQ_API_KEY`,
+   `TAVILY_API_KEY` and `CRON_SECRET` are the operational minimum.
 3. Deploy. `postinstall` runs `prisma generate` automatically.
 4. Run `npx prisma db push` once (locally, pointed at the production
    `DATABASE_URL`, or via a one-off Vercel deploy hook) to create the
-   tables in the production database.
+   tables in a new production database. Existing installations do not need a
+   migration for the provider usage meter.
+5. Verify `GET /radar/api/health`: HTTP 200 confirms database connectivity and
+   reports provider configuration as booleans without exposing secret values.
+
+Every push and pull request also runs `.github/workflows/ci.yml` (locked install,
+Prisma validation, lint, type-check and production build) before merge.
 
 ## 10. Future scheduling
 
-`vercel.json` already defines a daily cron hitting `/api/agents/run-all`:
+`vercel.json` defines a daily cron hitting `/radar/api/agents/run-all`:
 
 ```json
-{ "crons": [{ "path": "/api/agents/run-all", "schedule": "0 8 * * *" }] }
+{ "crons": [{ "path": "/radar/api/agents/run-all", "schedule": "0 8 * * *" }] }
 ```
 
-Set `CRON_SECRET` in the Vercel project once you rely on this, so that
+Set `CRON_SECRET` in the Vercel project before relying on this, so that
 endpoint only accepts Vercel Cron's own request (and your own curl
 tests) rather than being open to the public internet. Nothing else needs
 to change — the same `runBoth()` function backs the manual button, the
@@ -227,4 +249,4 @@ process without rewriting them.
 
 ## 11. How to add another agent
 
-See "Adding a third agent" under section 3 above.
+See "Adding another agent" under section 3 above.

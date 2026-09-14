@@ -6,13 +6,12 @@ import { AgentDependencyError } from "./agents/errors";
 import { reserveCall } from "./usage";
 import { createThrottle } from "./throttle";
 
-// One Groq client for the process. Auth is an explicit free API key
-// (GROQ_API_KEY) — no Vercel AI Gateway credit is used.
+// One Groq client for the process. Authentication uses GROQ_API_KEY directly;
+// no Vercel AI Gateway credential is involved.
 const groq = createGroq({ apiKey: env.GROQ_API_KEY });
 
-// Groq's free tier caps tokens-per-minute, so keep a small gap between LLM
-// calls to avoid TPM bursts. Independent from Tavily's throttle. Tune with
-// GROQ_MIN_SPACING_MS.
+// Keep a small gap between LLM calls to avoid provider rate bursts. This is
+// independent from Tavily's throttle and can be tuned with GROQ_MIN_SPACING_MS.
 const throttleGroq = createThrottle(
   Number.parseInt(process.env.GROQ_MIN_SPACING_MS || "1200", 10) || 1200
 );
@@ -29,17 +28,16 @@ export async function generateText(params: {
 }): Promise<string> {
   if (!hasAI()) {
     throw new AgentDependencyError(
-      "LLM generation is not configured. Add a free Groq API key (GROQ_API_KEY) — " +
-        "create one at console.groq.com, no credit card required."
+      "LLM generation is not configured. Add a Groq API key as GROQ_API_KEY."
     );
   }
 
-  // Enforce the free-tier budget BEFORE spending a call (daily/weekly/monthly).
+  // Reserve against the application guardrails before making a provider call.
   await reserveCall("groq");
 
   try {
-    // Serialize through the Groq throttle to respect the free-tier per-minute
-    // limit; a call that still fails fails fast (maxRetries 3 ≈ 2s,4s,8s).
+    // Serialize through the Groq throttle to reduce rate bursts; a call that
+    // still fails uses the AI SDK's bounded retries.
     const { text } = await throttleGroq(() =>
       aiGenerateText({
         model: groq(env.GROQ_MODEL),
@@ -47,6 +45,7 @@ export async function generateText(params: {
         system: params.system,
         prompt: params.prompt,
         maxRetries: 3,
+        abortSignal: AbortSignal.timeout(env.GROQ_TIMEOUT_MS),
       })
     );
     if (!text || !text.trim()) {
@@ -56,16 +55,21 @@ export async function generateText(params: {
   } catch (err) {
     if (err instanceof AgentDependencyError) throw err;
     const message = err instanceof Error ? err.message : String(err);
+    if (/abort|timed?\s*out|timeout/i.test(message)) {
+      throw new AgentDependencyError(
+        `Groq did not respond within ${Math.round(env.GROQ_TIMEOUT_MS / 1000)} seconds. Retry the run shortly.`
+      );
+    }
     if (/rate.?limit|429|too many requests/i.test(message)) {
       throw new AgentDependencyError(
-        "Groq is temporarily rate-limited (free-tier per-minute cap). No changes were lost — " +
+        "Groq is temporarily rate-limited. No changes were lost — " +
           "wait a minute and run again. The daily/weekly/monthly budget caps in Settings keep " +
-          "usage within Groq's free tier."
+          "application calls within the configured guardrails."
       );
     }
     if (/api key|unauthorized|401|invalid.*key/i.test(message)) {
       throw new AgentDependencyError(
-        "Groq rejected the API key. Check that GROQ_API_KEY is a valid free key from console.groq.com."
+        "Groq rejected the API key. Check that GROQ_API_KEY is valid."
       );
     }
     throw new AgentDependencyError(`Groq call failed: ${message}`);

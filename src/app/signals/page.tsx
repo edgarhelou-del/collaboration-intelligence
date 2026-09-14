@@ -6,6 +6,7 @@ import RunAgentsButton from "@/components/RunAgentsButton";
 import ArchiveToggle from "@/components/ArchiveToggle";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 300;
 
 const PAIN_CATEGORIES = [
   "COLLABORATION",
@@ -24,7 +25,8 @@ const PAIN_CATEGORIES = [
 const STATUSES = ["NEW", "INVESTIGATING", "RELEVANT", "CONTACTED"];
 const EVIDENCE_TYPES = ["DIRECT", "INDIRECT"];
 
-export default async function SignalsPage({ searchParams }: { searchParams: Record<string, string> }) {
+export default async function SignalsPage(props: { searchParams: Promise<Record<string, string>> }) {
+  const searchParams = await props.searchParams;
   const archived = searchParams.archived === "1";
   const filters: SignalFilters = {
     minScore: searchParams.minScore ? Number(searchParams.minScore) : undefined,

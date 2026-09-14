@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { assertCronAuthorized } from "@/lib/cronAuth";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 60;
+export const maxDuration = 300;
 
 /**
  * Re-aggregates existing signals into patterns WITHOUT running the agents (no

@@ -112,10 +112,9 @@ export async function runBoth(): Promise<{
   painResearch: AgentRunOutcome;
   bioAdaptability: AgentRunOutcome;
 }> {
-  // Run sequentially rather than in parallel: on Groq's free tier, firing every
-  // agent's model calls at once bursts past the per-minute rate limit.
-  // Sequencing spreads the calls out so each can complete (and lets the
-  // per-call backoff ride out the limit) instead of all failing together.
+  // Run sequentially rather than in parallel so the agents do not burst the
+  // provider rate limits. One failure does not prevent the remaining agents
+  // from running.
   const content = await runContent().catch((reason) => toFailedOutcome(reason));
   const painResearch = await runPainResearch().catch((reason) => toFailedOutcome(reason));
   const bioAdaptability = await runBioAdaptabilityAgent().catch((reason) => toFailedOutcome(reason));

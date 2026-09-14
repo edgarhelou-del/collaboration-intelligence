@@ -7,8 +7,8 @@ import {
   getBioFindingCounts,
   getBioPatterns,
 } from "@/lib/data";
-import { hasAI, hasSearch, env } from "@/lib/env";
-import { getAiUsageToday } from "@/lib/usage";
+import { hasAI, hasSearch } from "@/lib/env";
+import { getAllUsage, type ProviderUsage } from "@/lib/usage";
 import { formatDateTime, relativeDay, titleCase } from "@/lib/format";
 import RunAgentsButton from "@/components/RunAgentsButton";
 import Bar from "@/components/Bar";
@@ -16,6 +16,7 @@ import ScorePill from "@/components/ScorePill";
 import StatusBadge from "@/components/StatusBadge";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 300;
 
 export default async function DashboardPage() {
   const [latestContent, signalCounts, patterns, recentRuns, usage, bioCounts, bioPatterns] = await Promise.all([
@@ -23,15 +24,12 @@ export default async function DashboardPage() {
     getSignalCounts(),
     getPatterns("frequent"),
     getRecentAgentRuns(12),
-    getAiUsageToday().catch(() => ({ count: 0, limit: env.AI_DAILY_CALL_LIMIT })),
+    getAllUsage().catch(() => [] as ProviderUsage[]),
     getBioFindingCounts(),
     getBioPatterns("frequent"),
   ]);
 
   const systemReady = hasAI() && hasSearch();
-  const capDisabled = usage.limit === 0;
-  const usagePct = capDisabled ? 0 : Math.min(100, (usage.count / usage.limit) * 100);
-  const usageDepleted = !capDisabled && usage.count >= usage.limit;
   const topPatterns = patterns.slice(0, 6);
   const maxSignalCount = Math.max(1, ...topPatterns.map((p) => p.signalCount));
   const topBioPatterns = bioPatterns.slice(0, 6);
@@ -59,29 +57,7 @@ export default async function DashboardPage() {
         </div>
         <div className="flex flex-col items-stretch gap-3 sm:items-end">
           <RunAgentsButton />
-          <div className="w-full min-w-[180px] sm:w-52">
-            <div className="flex items-baseline justify-between">
-              <span className="label">AI usage today</span>
-              <span className="font-mono text-xs text-ink">
-                {capDisabled ? `${usage.count} calls` : `${usage.count}/${usage.limit}`}
-              </span>
-            </div>
-            {!capDisabled && (
-              <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-line/40">
-                <div
-                  className={`h-full rounded-full ${usageDepleted ? "bg-signal-strong" : "bg-signal-interesting"}`}
-                  style={{ width: `${usagePct}%` }}
-                />
-              </div>
-            )}
-            <p className="mt-1 text-[11px] leading-tight text-muted">
-              {capDisabled
-                ? "No daily cap set"
-                : usageDepleted
-                  ? "Daily free-tier cap reached — resets 00:00 UTC"
-                  : `${usage.limit - usage.count} calls left today`}
-            </p>
-          </div>
+          <UsageSummary usage={usage} />
         </div>
       </header>
 
@@ -206,6 +182,42 @@ export default async function DashboardPage() {
           ))}
         </div>
       </section>
+    </div>
+  );
+}
+
+function UsageSummary({ usage }: { usage: ProviderUsage[] }) {
+  return (
+    <div className="w-full min-w-[220px] space-y-2 sm:w-60">
+      <span className="label">Provider usage today</span>
+      {usage.length === 0 ? (
+        <p className="text-[11px] text-muted">Usage meter unavailable</p>
+      ) : (
+        usage.map((provider) => {
+          const { count, limit } = provider.daily;
+          const capped = limit > 0;
+          const depleted = capped && count >= limit;
+          const pct = capped ? Math.min(100, (count / limit) * 100) : 0;
+          return (
+            <div key={provider.provider}>
+              <div className="flex items-baseline justify-between gap-3">
+                <span className="text-[11px] text-muted">{provider.label}</span>
+                <span className="font-mono text-[11px] text-ink">
+                  {capped ? `${count}/${limit}` : `${count} calls`}
+                </span>
+              </div>
+              {capped && (
+                <div className="mt-1 h-1 w-full overflow-hidden rounded-full bg-line/40">
+                  <div
+                    className={`h-full rounded-full ${depleted ? "bg-signal-strong" : "bg-signal-interesting"}`}
+                    style={{ width: `${pct}%` }}
+                  />
+                </div>
+              )}
+            </div>
+          );
+        })
+      )}
     </div>
   );
 }
