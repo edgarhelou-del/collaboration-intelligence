@@ -24,7 +24,7 @@ export const env = {
   TAVILY_TIMEOUT_MS: parsePositiveInt(process.env.TAVILY_TIMEOUT_MS, 20_000),
   // Max web searches each researcher runs per pass. Keep this modest to limit
   // latency and provider usage; raise with RESEARCH_MAX_QUERIES.
-  RESEARCH_MAX_QUERIES: parsePositiveInt(process.env.RESEARCH_MAX_QUERIES, 4),
+  RESEARCH_MAX_QUERIES: parsePositiveInt(process.env.RESEARCH_MAX_QUERIES, process.env.GROQ_API_KEY ? 4 : 2),
 };
 
 export type ProviderKey = "groq" | "tavily" | "gateway";

@@ -351,11 +351,11 @@ export async function runPainResearcher(agentRunId: string): Promise<{
     deduped.map((r) => ({ title: r.title, url: r.url, content: r.content.slice(0, 1500), publishedDate: r.publishedDate })),
     null,
     2
-  )}\n\nExtract qualifying signals now. Aim to return up to 10 distinct, high-quality signals if the snippets support them — but never fabricate or pad: only include signals with a real named person and company, and return fewer (or an empty array) if the material does not qualify.`;
+  )}\n\nExtract qualifying signals now. Aim to return up to 4 distinct, high-quality signals if the snippets support them — but never fabricate or pad: only include signals with a real named person and company, and return fewer (or an empty array) if the material does not qualify.`;
 
   const candidates: Candidate[] = [];
   try {
-    const raw = await generateJSON<unknown[]>({ system: SYSTEM_PROMPT, prompt: batchPrompt, maxTokens: 8192 });
+    const raw = await generateJSON<unknown[]>({ system: SYSTEM_PROMPT, prompt: batchPrompt, maxTokens: 4096 });
     const rawArray = Array.isArray(raw) ? raw : [];
     // Validate per-item so one malformed candidate (e.g. an invented category)
     // doesn't discard the whole batch. Coerce an unknown painCategory to OTHER.

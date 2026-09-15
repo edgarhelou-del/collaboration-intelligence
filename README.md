@@ -176,7 +176,7 @@ See `.env.example`. Required for full functionality:
 | `GROQ_API_KEY` | Optional | Use Groq instead of the existing Vercel AI Gateway |
 | `GROQ_MODEL` | No | Groq production model; defaults to `llama-3.3-70b-versatile` |
 | `TAVILY_API_KEY` | For research | Server-side key for live web search |
-| `RESEARCH_MAX_QUERIES` | No | Max web searches per researcher pass. Defaults to `4` (keep modest on the free tier) |
+| `RESEARCH_MAX_QUERIES` | No | Max web searches per researcher pass. Defaults to `2` with Gateway or `4` with Groq (keep modest on the free tier) |
 | `CRON_SECRET` | Yes in production | Locks `/api/agents/*` to requests carrying this bearer token |
 
 Timeouts, throttle intervals and provider usage guardrails are documented in
@@ -259,3 +259,5 @@ process without rewriting them.
 ## 11. How to add another agent
 
 See "Adding another agent" under section 3 above.
+
+AI Gateway requests share a 20-second pause after each request (`AI_MIN_SPACING_MS`). Gateway retries are disabled to avoid retry bursts on free-tier rate limits; smaller extraction batches fit serverless execution windows. Provider limits still apply.

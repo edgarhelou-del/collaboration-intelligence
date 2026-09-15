@@ -12,8 +12,14 @@ const groq = createGroq({ apiKey: env.GROQ_API_KEY });
 
 // Keep a small gap between LLM calls to avoid provider rate bursts. This is
 // independent from Tavily's throttle and can be tuned with GROQ_MIN_SPACING_MS.
-export const throttleGroq = createThrottle(
+const throttleGroq = createThrottle(
   Number.parseInt(process.env.GROQ_MIN_SPACING_MS || "1200", 10) || 1200
+);
+
+// Gateway free-tier requests need a slower shared queue across generation
+// and web research. The delay also applies after a rejected request.
+export const throttleGateway = createThrottle(
+  Number.parseInt(process.env.AI_MIN_SPACING_MS || "20000", 10) || 20000
 );
 
 /**
@@ -40,13 +46,13 @@ export async function generateText(params: {
   try {
     // Serialize through the Groq throttle to reduce rate bursts; a call that
     // still fails uses the AI SDK's bounded retries.
-    const { text } = await throttleGroq(() =>
+    const { text } = await (provider === "groq" ? throttleGroq : throttleGateway)(() =>
       aiGenerateText({
         model: provider === "groq" ? groq(env.GROQ_MODEL) : env.AI_MODEL,
         maxOutputTokens: params.maxTokens ?? 4096,
         system: params.system,
         prompt: params.prompt,
-        maxRetries: 3,
+        maxRetries: provider === "groq" ? 3 : 0,
         abortSignal: AbortSignal.timeout(env.GROQ_TIMEOUT_MS),
       })
     );

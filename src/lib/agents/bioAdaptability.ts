@@ -363,11 +363,11 @@ export async function runBioAdaptability(agentRunId: string): Promise<{
     deduped.map((r) => ({ title: r.title, url: r.url, content: r.content.slice(0, 1500), publishedDate: r.publishedDate })),
     null,
     2
-  )}\n\nExtract qualifying adaptation findings now. Aim for up to 10 distinct, high-quality findings if the snippets support them — mixing RESEARCH and ATTRIBUTED as the material allows. Never fabricate or pad; return fewer (or an empty array) only if the material genuinely does not qualify.`;
+  )}\n\nExtract qualifying adaptation findings now. Aim for up to 4 distinct, high-quality findings if the snippets support them — mixing RESEARCH and ATTRIBUTED as the material allows. Never fabricate or pad; return fewer (or an empty array) only if the material genuinely does not qualify.`;
 
   const candidates: Candidate[] = [];
   try {
-    const raw = await generateJSON<unknown[]>({ system: SYSTEM_PROMPT, prompt: batchPrompt, maxTokens: 8192 });
+    const raw = await generateJSON<unknown[]>({ system: SYSTEM_PROMPT, prompt: batchPrompt, maxTokens: 4096 });
     const rawArray = Array.isArray(raw) ? raw : [];
     for (const item of rawArray) {
       const parsed = CandidateSchema.safeParse(normalizeCandidate(item));

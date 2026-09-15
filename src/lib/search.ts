@@ -1,7 +1,7 @@
 import "server-only";
 import { env, hasSearch, hasGateway } from "./env";
 import { generateText as aiGenerateText } from "ai";
-import { extractJson, throttleGroq } from "./ai";
+import { extractJson, throttleGateway } from "./ai";
 import { AgentDependencyError } from "./agents/errors";
 import { reserveCall } from "./usage";
 import { createThrottle } from "./throttle";
@@ -127,10 +127,10 @@ async function gatewaySearch(
   opts?: { maxResults?: number; includeDomains?: string[] }
 ): Promise<SearchResult[]> {
   await reserveCall("gateway");
-  const result = await throttleGroq(() => aiGenerateText({
+  const result = await throttleGateway(() => aiGenerateText({
     model: "perplexity/sonar",
     maxOutputTokens: 2048,
-    maxRetries: 2,
+    maxRetries: 0,
     abortSignal: AbortSignal.timeout(45_000),
     system: "Search the live web. Return only factual source-specific summaries backed by your citations. Never invent people, quotes or URLs. Return JSON only.",
     prompt: `Search: ${query}\nReturn a JSON array of up to ${opts?.maxResults ?? 8} results with title, url, content (a short source-specific paraphrase, not a quotation), and publishedDate (ISO date or null). ${opts?.includeDomains?.length ? `Only use these domains: ${opts.includeDomains.join(", ")}.` : ""}`,
