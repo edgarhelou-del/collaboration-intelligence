@@ -73,7 +73,7 @@ export async function runContentAgent(agentRunId: string): Promise<{ contentId: 
       );
     }
   } else {
-    warnings.push("Web search unavailable (AI Gateway not configured); no fresh research snippets fetched this run.");
+    warnings.push("Web search unavailable (Tavily not configured); no fresh research snippets fetched this run.");
   }
 
   const buildPrompt = (avoidIdeas: string[]) => `EMERGING SIGNALS FROM THE PAIN RESEARCHER (may be empty early on):

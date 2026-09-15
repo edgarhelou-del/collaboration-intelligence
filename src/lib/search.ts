@@ -1,10 +1,11 @@
 import "server-only";
+import { env, hasSearch, hasGateway } from "./env";
 import { generateText as aiGenerateText } from "ai";
-import { hasAI } from "./env";
+import { extractJson, throttleGateway } from "./ai";
 import { AgentDependencyError } from "./agents/errors";
-import { extractJson } from "./ai";
-import { reserveAiCall } from "./usage";
-import { throttleGateway } from "./gatewayThrottle";
+import { reserveCall } from "./usage";
+import { createThrottle } from "./throttle";
+import { groqSearch } from "./groq-search";
 
 export type SearchResult = {
   title: string;
@@ -14,114 +15,140 @@ export type SearchResult = {
 };
 
 /**
- * Live web search backed by Perplexity's Sonar models through the Vercel AI
- * Gateway. Sonar performs a real-time web search and answers with grounded
- * citations, so results reflect currently-accessible pages rather than the
- * model's training data. Authentication is zero-config on Vercel/v0 (OIDC),
- * so no provider or search API key is required.
+ * Live web search backed by Tavily's REST API. It is called directly, so web
+ * research does not consume an LLM/Gateway call. Tavily returns source URLs
+ * with short content snippets, which the researchers pass to the LLM.
  *
- * The `provider/model` id can be overridden with SEARCH_MODEL (defaults to
- * `perplexity/sonar`, the cheapest Sonar tier). Any provider can be swapped in
- * behind this same function signature.
+ * Uses "basic" search depth to limit provider usage. Each search counts
+ * against the Tavily application meter (see usage.ts) and is spaced by its own
+ * throttle.
  */
-const SEARCH_MODEL = process.env.SEARCH_MODEL || "perplexity/sonar";
+const TAVILY_ENDPOINT = "https://api.tavily.com/search";
 
-type RawResult = {
+const throttleTavily = createThrottle(
+  Number.parseInt(process.env.TAVILY_MIN_SPACING_MS || "300", 10) || 300
+);
+
+type TavilyResult = {
   title?: string;
   url?: string;
   content?: string;
-  publishedDate?: string | null;
+  published_date?: string | null;
 };
 
 export async function webSearch(
   query: string,
   opts?: { maxResults?: number; includeDomains?: string[] }
 ): Promise<SearchResult[]> {
-  if (!hasAI()) {
+  // Free mode never calls Tavily or AI Gateway, even if old keys are present.
+  if (env.FREE_ONLY || env.GROQ_API_KEY) return groqSearch(query, opts);
+  if (!hasSearch()) {
     throw new AgentDependencyError(
-      "Web search requires the AI Gateway. On Vercel/v0 it is zero-config; " +
-        "locally, set AI_GATEWAY_API_KEY to enable web research."
+      "Web search is not configured. Add a Tavily API key as TAVILY_API_KEY."
     );
   }
 
-  // A Sonar search is a model call, so it counts against the daily budget cap.
-  await reserveAiCall();
+  if (!env.TAVILY_API_KEY) return gatewaySearch(query, opts);
+
+  // Reserve against the application guardrails before making a provider call.
+  await reserveCall("tavily");
 
   const maxResults = opts?.maxResults ?? 8;
-  const domainHint = opts?.includeDomains?.length
-    ? ` Strongly prefer sources from these domains: ${opts.includeDomains.join(", ")}.`
-    : "";
+  const body: Record<string, unknown> = {
+    query,
+    max_results: maxResults,
+    search_depth: "basic",
+    include_answer: false,
+    include_raw_content: false,
+  };
+  if (opts?.includeDomains?.length) body.include_domains = opts.includeDomains;
 
-  let text: string;
-  let sources: { sourceType: string; url?: string; title?: string }[];
+  let data: { results?: TavilyResult[] };
   try {
-    const result = await throttleGateway(() =>
-      aiGenerateText({
-        model: SEARCH_MODEL,
-        maxOutputTokens: 2048,
-        // The shared throttle already spaces Gateway calls under the per-minute
-        // limit, so keep retries modest — a call that still fails should fail
-        // fast rather than retrying for ~60s.
-        maxRetries: 3,
-        system:
-          "You are a precise web research tool. Search the live web and return ONLY " +
-          "factual results grounded in real, currently-accessible pages. Never invent " +
-          "URLs, titles, or content. If nothing relevant is found, return an empty array.",
-        prompt:
-          `Search the web for: "${query}".\n\n` +
-          `Return a JSON array of up to ${maxResults} of the most relevant results. ` +
-          `Each item must be an object with exactly these keys:\n` +
-          `- "title": the page title (string)\n` +
-          `- "url": the real, full source URL (string)\n` +
-          `- "content": a 2-4 sentence factual summary of what that page says about the query (string)\n` +
-          `- "publishedDate": ISO 8601 date string, or null if unknown\n` +
-          domainHint +
-          `\n\nRespond with ONLY the JSON array. No prose, no markdown fences.`,
+    const res = await throttleTavily(() =>
+      fetch(TAVILY_ENDPOINT, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${env.TAVILY_API_KEY}`,
+        },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(env.TAVILY_TIMEOUT_MS),
       })
     );
-    text = result.text;
-    sources = (result.sources ?? []) as typeof sources;
+
+    if (!res.ok) {
+      // Tavily reports exhausted plan quotas as 432 (in addition to 429).
+      // Switch services without increasing or bypassing the Tavily quota.
+      if ([429, 432, 433].includes(res.status) && hasGateway()) {
+        await res.body?.cancel();
+        return gatewaySearch(query, opts);
+      }
+      const detail = await res.text().catch(() => "");
+      if (res.status === 429) {
+        throw new AgentDependencyError(
+          "Tavily rate or credit limit reached. Web research is paused; verify the provider " +
+            "quota and the usage panel in Settings before retrying."
+        );
+      }
+      if (res.status === 401 || res.status === 403) {
+        throw new AgentDependencyError(
+          "Tavily rejected the API key. Check that TAVILY_API_KEY is valid."
+        );
+      }
+      throw new AgentDependencyError(
+        `Tavily search failed (HTTP ${res.status})${detail ? `: ${detail.slice(0, 160)}` : ""}.`
+      );
+    }
+
+    data = (await res.json()) as { results?: TavilyResult[] };
   } catch (err) {
     if (err instanceof AgentDependencyError) throw err;
     const message = err instanceof Error ? err.message : String(err);
-    if (/rate.?limit|429|too many requests/i.test(message)) {
+    if (/abort|timed?\s*out|timeout/i.test(message)) {
       throw new AgentDependencyError(
-        "The AI Gateway rejected the search (429) — the free-tier credit is likely " +
-          "exhausted. Add AI Gateway credits in your Vercel dashboard to resume web research."
+        `Tavily did not respond within ${Math.round(env.TAVILY_TIMEOUT_MS / 1000)} seconds. Retry the run shortly.`
       );
     }
     throw new AgentDependencyError(`Web search failed: ${message}`);
   }
 
-  // Primary path: parse the JSON the model was asked to produce.
-  let parsed: RawResult[] = [];
-  try {
-    parsed = extractJson<RawResult[]>(text);
-    if (!Array.isArray(parsed)) parsed = [];
-  } catch {
-    parsed = [];
-  }
-
-  let results: SearchResult[] = parsed
-    .filter((r): r is RawResult & { url: string } => typeof r?.url === "string" && r.url.length > 0)
+  const results: SearchResult[] = (data.results ?? [])
+    .filter((r): r is TavilyResult & { url: string } => typeof r?.url === "string" && r.url.length > 0)
     .map((r) => ({
       title: (r.title ?? r.url).trim(),
       url: r.url.trim(),
       content: (r.content ?? "").trim(),
-      publishedDate: r.publishedDate ?? undefined,
+      publishedDate: r.published_date ?? undefined,
     }));
 
-  // Fallback: if the model didn't return usable JSON, build results from the
-  // grounded citations Sonar attached to its answer.
-  if (results.length === 0 && sources.length > 0) {
-    results = sources
-      .filter((s) => s.sourceType === "url" && typeof s.url === "string")
-      .map((s) => ({
-        title: (s.title ?? s.url) as string,
-        url: s.url as string,
-        content: (s.title ?? "") as string,
-      }));
-  }
-
   return results.slice(0, maxResults);
+}
+
+async function gatewaySearch(
+  query: string,
+  opts?: { maxResults?: number; includeDomains?: string[] }
+): Promise<SearchResult[]> {
+  await reserveCall("gateway");
+  const result = await throttleGateway(() => aiGenerateText({
+    model: "perplexity/sonar",
+    maxOutputTokens: 2048,
+    maxRetries: 0,
+    abortSignal: AbortSignal.timeout(45_000),
+    system: "Search the live web. Return only factual source-specific summaries backed by your citations. Never invent people, quotes or URLs. Return JSON only.",
+    prompt: `Search: ${query}\nReturn a JSON array of up to ${opts?.maxResults ?? 8} results with title, url, content (a short source-specific paraphrase, not a quotation), and publishedDate (ISO date or null). ${opts?.includeDomains?.length ? `Only use these domains: ${opts.includeDomains.join(", ")}.` : ""}`,
+  }));
+  const cited = new Set(result.sources.filter(s => s.sourceType === "url").map(s => s.url));
+  const parsed: unknown = extractJson(result.text);
+  if (!Array.isArray(parsed)) throw new AgentDependencyError("Search returned invalid structured results.");
+  // Accept only URLs independently attached by the search provider. A URL
+  // merely written in generated JSON is not enough to count as a source.
+  return parsed.filter((r): r is SearchResult => {
+    if (!r || typeof r.url !== "string" || typeof r.content !== "string" || typeof r.title !== "string" || !cited.has(r.url)) return false;
+    if (!opts?.includeDomains?.length) return true;
+    try {
+      const host = new URL(r.url).hostname;
+      return opts.includeDomains.some(d => host === d || host.endsWith(`.${d}`));
+    } catch { return false; }
+  }).map(r => ({title: r.title, url: r.url, content: `Search-provider paraphrase (not a verbatim quote): ${r.content}`, publishedDate: r.publishedDate || undefined})).slice(0, opts?.maxResults ?? 8);
 }

@@ -1,17 +1,31 @@
 import "server-only";
 import { generateText as aiGenerateText } from "ai";
-import { env, hasAI } from "./env";
+import { createGroq } from "@ai-sdk/groq";
+import { env, hasAI, aiProvider, PROVIDER_LABELS } from "./env";
 import { AgentDependencyError } from "./agents/errors";
-import { reserveAiCall } from "./usage";
-import { throttleGateway } from "./gatewayThrottle";
+import { reserveCall } from "./usage";
+import { createThrottle } from "./throttle";
+
+// One Groq client for the process. Authentication uses GROQ_API_KEY directly;
+// no Vercel AI Gateway credential is involved.
+const groq = createGroq({ apiKey: env.GROQ_API_KEY });
+
+// Keep a small gap between LLM calls to avoid provider rate bursts. This is
+// independent from Tavily's throttle and can be tuned with GROQ_MIN_SPACING_MS.
+const throttleGroq = createThrottle(
+  Math.max(env.FREE_ONLY ? 60_000 : 1200, Number.parseInt(process.env.GROQ_MIN_SPACING_MS || "1200", 10) || 1200)
+);
+
+// Gateway free-tier requests need a slower shared queue across generation
+// and web research. The delay also applies after a rejected request.
+export const throttleGateway = createThrottle(
+  Number.parseInt(process.env.AI_MIN_SPACING_MS || "20000", 10) || 20000
+);
 
 /**
- * Calls the model through the Vercel AI Gateway and returns raw text.
- *
- * Authentication is zero-config on Vercel/v0 (OIDC), so no provider API key is
- * needed. The model is referenced with a Gateway `provider/model` id (see
- * AI_MODEL in env). Throws AgentDependencyError on any transport/auth failure
- * so callers can report "research incomplete" instead of inventing a result.
+ * Calls the Groq model and returns raw text. Throws AgentDependencyError on any
+ * transport/auth/budget failure so callers report "research incomplete"
+ * instead of inventing a result.
  */
 export async function generateText(params: {
   system: string;
@@ -20,28 +34,28 @@ export async function generateText(params: {
 }): Promise<string> {
   if (!hasAI()) {
     throw new AgentDependencyError(
-      "AI generation is not configured. On Vercel/v0 the AI Gateway is zero-config; " +
-        "locally, set AI_GATEWAY_API_KEY to enable AI generation."
+      "Configure GROQ_API_KEY from a Groq Free account to enable generation."
     );
   }
 
-  // Enforce the daily budget cap BEFORE spending a model call. Thrown as an
-  // AgentDependencyError so it propagates like any other missing dependency.
-  await reserveAiCall();
+  // Reserve against the application guardrails before making a provider call.
+  const provider = aiProvider();
+  const label = PROVIDER_LABELS[provider];
+  await reserveCall(provider);
 
   try {
-    // Route through the shared global throttle so this call is spaced out from
-    // every other Gateway call (search + generation) and we stay under the
-    // free-tier per-minute limit. maxRetries is modest (3 → ~2s,4s,8s backoff)
-    // because the throttle already prevents the bursts that caused 429s, so a
-    // call that still fails should fail fast (~15s) instead of retrying ~60s.
-    const { text } = await throttleGateway(() =>
+    // Serialize through the Groq throttle to reduce rate bursts; a call that
+    // still fails uses the AI SDK's bounded retries.
+    const { text } = await (provider === "groq" ? throttleGroq : throttleGateway)(() =>
       aiGenerateText({
-        model: env.AI_MODEL,
-        maxOutputTokens: params.maxTokens ?? 4096,
+        model: provider === "groq" ? groq(env.GROQ_MODEL) : env.AI_MODEL,
+        maxOutputTokens: env.FREE_ONLY ? Math.min(params.maxTokens ?? 3072, 3072) : params.maxTokens ?? 4096,
         system: params.system,
         prompt: params.prompt,
-        maxRetries: 3,
+        maxRetries: env.FREE_ONLY ? 0 : provider === "groq" ? 3 : 0,
+        ...(provider === "groq" && env.GROQ_MODEL.startsWith("openai/gpt-oss")
+          ? { providerOptions: { groq: { reasoningEffort: "low" } } } : {}),
+        abortSignal: AbortSignal.timeout(env.GROQ_TIMEOUT_MS),
       })
     );
     if (!text || !text.trim()) {
@@ -51,17 +65,24 @@ export async function generateText(params: {
   } catch (err) {
     if (err instanceof AgentDependencyError) throw err;
     const message = err instanceof Error ? err.message : String(err);
-    // Surface the free-tier rate limit as a clear, temporary condition rather
-    // than a generic failure, so the UI can tell the user to simply retry soon.
-    if (/rate.?limit|429|too many requests/i.test(message)) {
+    if (/abort|timed?\s*out|timeout/i.test(message)) {
       throw new AgentDependencyError(
-        "The AI Gateway rejected the request (429). This usually means the free-tier " +
-          "credit is exhausted — add AI Gateway credits in your Vercel dashboard " +
-          "(Vercel → AI Gateway → Billing) to resume runs. If you just added credit, wait a " +
-          "minute and run again."
+        `${label} did not respond within ${Math.round(env.GROQ_TIMEOUT_MS / 1000)} seconds. Retry the run shortly.`
       );
     }
-    throw new AgentDependencyError(`AI Gateway call failed: ${message}`);
+    if (/rate.?limit|429|too many requests/i.test(message)) {
+      throw new AgentDependencyError(
+        `${label} is temporarily rate-limited. No changes were lost — ` +
+          "wait a minute and run again. The daily/weekly/monthly budget caps in Settings keep " +
+          "application calls within the configured guardrails."
+      );
+    }
+    if (/api key|unauthorized|401|invalid.*key/i.test(message)) {
+      throw new AgentDependencyError(
+        `${label} rejected authentication. Check the provider credentials or Vercel OIDC configuration.`
+      );
+    }
+    throw new AgentDependencyError(`${label} call failed: ${message}`);
   }
 }
 

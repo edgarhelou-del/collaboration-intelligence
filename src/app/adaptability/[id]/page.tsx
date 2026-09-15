@@ -7,7 +7,8 @@ import BioFindingStatusControl from "@/components/BioFindingStatusControl";
 
 export const dynamic = "force-dynamic";
 
-export default async function BioFindingDetailPage({ params }: { params: { id: string } }) {
+export default async function BioFindingDetailPage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const finding = await getBioFindingById(params.id);
   if (!finding) notFound();
 

@@ -6,6 +6,7 @@ import RunAgentsButton from "@/components/RunAgentsButton";
 import ArchiveToggle from "@/components/ArchiveToggle";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 300;
 
 const CATEGORIES = [
   "CHANGE_READINESS",
@@ -25,7 +26,8 @@ const LEVELS = ["INDIVIDUAL", "TEAM", "ORGANIZATION"];
 const TYPES = ["ATTRIBUTED", "RESEARCH"];
 const STATUSES = ["NEW", "REVIEWING", "RELEVANT"];
 
-export default async function AdaptabilityPage({ searchParams }: { searchParams: Record<string, string> }) {
+export default async function AdaptabilityPage(props: { searchParams: Promise<Record<string, string>> }) {
+  const searchParams = await props.searchParams;
   const archived = searchParams.archived === "1";
   const filters: BioFindingFilters = {
     minScore: searchParams.minScore ? Number(searchParams.minScore) : undefined,

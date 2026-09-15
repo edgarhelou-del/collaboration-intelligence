@@ -3,7 +3,7 @@ import { runContent } from "@/lib/agents/runner";
 import { assertCronAuthorized } from "@/lib/cronAuth";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 60;
+export const maxDuration = 180;
 
 export async function POST(request: Request) {
   const unauthorized = assertCronAuthorized(request);

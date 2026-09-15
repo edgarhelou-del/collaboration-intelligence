@@ -308,7 +308,7 @@ export async function runBioAdaptability(agentRunId: string): Promise<{
 }> {
   if (!hasSearch()) {
     throw new AgentDependencyError(
-      "Web search is unavailable (the AI Gateway is not configured). The Bioadaptability Researcher requires live web search and will not fabricate findings without it."
+      "Web search is unavailable (configure GROQ_API_KEY for free mode). The Bioadaptability Researcher requires live web search and will not fabricate findings without it."
     );
   }
 
@@ -316,11 +316,10 @@ export async function runBioAdaptability(agentRunId: string): Promise<{
   // Advance deterministically by prior Bio-run count so coverage rotates evenly
   // across runs instead of randomly re-sampling the same phrases.
   const priorRuns = await prisma.agentRun.count({ where: { agent: "BIO_ADAPTABILITY" } });
-  const queries = pickQueries(priorRuns).slice(0, env.RESEARCH_MAX_QUERIES);
+  const queries = pickQueries(priorRuns).slice(0, (env.FREE_ONLY ? Math.min(2, env.RESEARCH_MAX_QUERIES) : env.RESEARCH_MAX_QUERIES));
   const allResults: (SearchResult & { query: string })[] = [];
 
-  // Run searches concurrently (independent, no AI Gateway involved) so 10
-  // advanced queries collapse to ~2s instead of ~20s and never blow the timeout.
+  // Search calls are independently metered and spaced by the provider wrapper.
   const searches = await Promise.allSettled(queries.map((query) => webSearch(query, { maxResults: 8 })));
   searches.forEach((settled, i) => {
     const query = queries[i];
@@ -363,11 +362,11 @@ export async function runBioAdaptability(agentRunId: string): Promise<{
     deduped.map((r) => ({ title: r.title, url: r.url, content: r.content.slice(0, 1500), publishedDate: r.publishedDate })),
     null,
     2
-  )}\n\nExtract qualifying adaptation findings now. Aim for up to 10 distinct, high-quality findings if the snippets support them — mixing RESEARCH and ATTRIBUTED as the material allows. Never fabricate or pad; return fewer (or an empty array) only if the material genuinely does not qualify.`;
+  )}\n\nExtract qualifying adaptation findings now. Aim for up to 4 distinct, high-quality findings if the snippets support them — mixing RESEARCH and ATTRIBUTED as the material allows. Never fabricate or pad; return fewer (or an empty array) only if the material genuinely does not qualify.`;
 
   const candidates: Candidate[] = [];
   try {
-    const raw = await generateJSON<unknown[]>({ system: SYSTEM_PROMPT, prompt: batchPrompt, maxTokens: 8192 });
+    const raw = await generateJSON<unknown[]>({ system: SYSTEM_PROMPT, prompt: batchPrompt, maxTokens: 4096 });
     const rawArray = Array.isArray(raw) ? raw : [];
     for (const item of rawArray) {
       const parsed = CandidateSchema.safeParse(normalizeCandidate(item));
@@ -440,7 +439,7 @@ export async function runBioAdaptability(agentRunId: string): Promise<{
   }
 
   // Aggregate immediately, skipping per-pattern AI synthesis here to avoid
-  // bursting past the AI Gateway per-minute rate limit right after extraction.
+  // bursting past Groq's per-minute rate limit right after extraction.
   await recomputeBioPatterns({ skipSynthesis: true });
 
   return { savedCount, skippedDuplicates, warnings };

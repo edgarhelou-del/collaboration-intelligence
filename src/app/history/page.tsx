@@ -5,7 +5,11 @@ import ScorePill from "@/components/ScorePill";
 
 export const dynamic = "force-dynamic";
 
-export default async function HistoryPage({ searchParams }: { searchParams: { since?: string } }) {
+export default async function HistoryPage(props: { searchParams: Promise<{ since?: string }> }) {
+  const searchParams = await props.searchParams;
+  // This page is force-dynamic; the default rolling window is intentionally
+  // calculated from the time of each request.
+  // eslint-disable-next-line react-hooks/purity
   const since = searchParams.since ? new Date(searchParams.since) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
 
   const [runs, content, signals, bioFindings] = await Promise.all([

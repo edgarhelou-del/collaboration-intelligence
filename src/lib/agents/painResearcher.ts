@@ -285,7 +285,7 @@ export async function runPainResearcher(agentRunId: string): Promise<{
 }> {
   if (!hasSearch()) {
     throw new AgentDependencyError(
-      "Web search is unavailable (the AI Gateway is not configured). The Pain Researcher requires live web search and will not fabricate signals without it."
+      "Web search is unavailable (configure GROQ_API_KEY for free mode). The Pain Researcher requires live web search and will not fabricate signals without it."
     );
   }
 
@@ -296,14 +296,12 @@ export async function runPainResearcher(agentRunId: string): Promise<{
   // randomly re-sampling a few. Counting includes the current run row, which
   // simply gives a consistent +1 advance per run.
   const priorRuns = await prisma.agentRun.count({ where: { agent: "PAIN_RESEARCH" } });
-  const queries = pickQueries(env.RESEARCH_MAX_QUERIES, priorRuns);
+  const queries = pickQueries((env.FREE_ONLY ? Math.min(2, env.RESEARCH_MAX_QUERIES) : env.RESEARCH_MAX_QUERIES), priorRuns);
   const allResults: (SearchResult & { query: string })[] = [];
 
-  // Each search is now a Perplexity Sonar call on the AI Gateway. We launch
-  // them together for convenience, but the shared global throttle serializes
-  // the actual Gateway calls and spaces them under the free-tier per-minute
-  // limit, so they no longer burst into 429s. allSettled keeps one failed
-  // query from aborting the rest; failures are recorded as warnings.
+  // The search provider meters and spaces its calls. allSettled keeps one
+  // failed query from aborting the rest;
+  // failures are recorded as warnings.
   const searches = await Promise.allSettled(
     queries.map((query) => webSearch(query, { maxResults: 8 }))
   );
@@ -352,11 +350,11 @@ export async function runPainResearcher(agentRunId: string): Promise<{
     deduped.map((r) => ({ title: r.title, url: r.url, content: r.content.slice(0, 1500), publishedDate: r.publishedDate })),
     null,
     2
-  )}\n\nExtract qualifying signals now. Aim to return up to 10 distinct, high-quality signals if the snippets support them — but never fabricate or pad: only include signals with a real named person and company, and return fewer (or an empty array) if the material does not qualify.`;
+  )}\n\nExtract qualifying signals now. Aim to return up to 4 distinct, high-quality signals if the snippets support them — but never fabricate or pad: only include signals with a real named person and company, and return fewer (or an empty array) if the material does not qualify.`;
 
   const candidates: Candidate[] = [];
   try {
-    const raw = await generateJSON<unknown[]>({ system: SYSTEM_PROMPT, prompt: batchPrompt, maxTokens: 8192 });
+    const raw = await generateJSON<unknown[]>({ system: SYSTEM_PROMPT, prompt: batchPrompt, maxTokens: 4096 });
     const rawArray = Array.isArray(raw) ? raw : [];
     // Validate per-item so one malformed candidate (e.g. an invented category)
     // doesn't discard the whole batch. Coerce an unknown painCategory to OTHER.
@@ -470,7 +468,7 @@ export async function runPainResearcher(agentRunId: string): Promise<{
 
   // Aggregate patterns immediately, but SKIP the per-pattern AI synthesis here:
   // running one synthesis call per pattern right after the extraction call would
-  // burst past the AI Gateway free-tier per-minute rate limit and fail the run.
+  // burst past Groq's free-tier per-minute rate limit and fail the run.
   // Synthesis is a best-effort nice-to-have, refreshed separately via
   // POST /api/patterns/recompute?synthesis=1 when budget allows.
   await recomputePatterns({ skipSynthesis: true });

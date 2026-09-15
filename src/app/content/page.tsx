@@ -8,15 +8,17 @@ import ScorePill from "@/components/ScorePill";
 import ArchiveToggle from "@/components/ArchiveToggle";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 180;
 
 type Evidence = { text: string; kind: "FACT" | "INTERPRETATION" | "HYPOTHESIS"; sourceUrl?: string };
 type SourceItem = { title: string; url: string; publisher?: string };
 
-export default async function ContentPage({
-  searchParams,
-}: {
-  searchParams: { id?: string; archived?: string };
-}) {
+export default async function ContentPage(
+  props: {
+    searchParams: Promise<{ id?: string; archived?: string }>;
+  }
+) {
+  const searchParams = await props.searchParams;
   const archived = searchParams.archived === "1";
   const [item, history] = await Promise.all([
     searchParams.id ? getContentById(searchParams.id) : getLatestContent(archived),
