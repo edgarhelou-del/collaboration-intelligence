@@ -1,5 +1,12 @@
 # KOLAB — Collaboration Intelligence Radar
 
+Deployment compatibility: generation uses Groq when `GROQ_API_KEY` is set;
+otherwise it uses the existing Vercel AI Gateway authentication (OIDC), with
+`AI_MODEL=openai/gpt-4.1-mini` by default. No new provider key is required on
+Vercel. Local Gateway use requires `AI_GATEWAY_API_KEY`. Tavily continues to
+provide live search. Gateway calls have separate daily/weekly/monthly guardrails
+(`AI_DAILY_CALL_LIMIT`, `AI_WEEKLY_CALL_LIMIT`, `AI_MONTHLY_CALL_LIMIT`).
+
 An intelligence engine, not a content generator. Three agents scan how human
 collaboration and bioadaptability are evolving inside real organizations, and
 the system accumulates that into a radar: recurring patterns, their growth,
@@ -165,7 +172,7 @@ See `.env.example`. Required for full functionality:
 | `DATABASE_URL` | Yes | PostgreSQL connection string |
 | `APP_DATABASE_URL` | No | Full override for the application database connection |
 | `APP_DB_NAME` | No | Isolated database name derived from `DATABASE_URL`; defaults to `collab_intel` |
-| `GROQ_API_KEY` | For agents | Server-side Groq key for extraction and generation |
+| `GROQ_API_KEY` | Optional | Use Groq instead of the existing Vercel AI Gateway |
 | `GROQ_MODEL` | No | Groq production model; defaults to `llama-3.3-70b-versatile` |
 | `TAVILY_API_KEY` | For research | Server-side key for live web search |
 | `RESEARCH_MAX_QUERIES` | No | Max web searches per researcher pass. Defaults to `4` (keep modest on the free tier) |
@@ -216,8 +223,9 @@ git push -u origin <branch-name>
 
 1. Import the GitHub repository in Vercel.
 2. Add the environment variables from `.env.example` in the project's
-   Development, Preview and Production settings. `DATABASE_URL`, `GROQ_API_KEY`,
-   `TAVILY_API_KEY` and `CRON_SECRET` are the operational minimum.
+   Development, Preview and Production settings. `DATABASE_URL`,
+   `TAVILY_API_KEY` and `CRON_SECRET` are the operational minimum on Vercel.
+   Generation uses existing Gateway OIDC authentication unless `GROQ_API_KEY` is set.
 3. Deploy. `postinstall` runs `prisma generate` automatically.
 4. Run `npx prisma db push` once (locally, pointed at the production
    `DATABASE_URL`, or via a one-off Vercel deploy hook) to create the

@@ -1,7 +1,7 @@
 import "server-only";
 import { generateText as aiGenerateText } from "ai";
 import { createGroq } from "@ai-sdk/groq";
-import { env, hasAI } from "./env";
+import { env, hasAI, aiProvider, PROVIDER_LABELS } from "./env";
 import { AgentDependencyError } from "./agents/errors";
 import { reserveCall } from "./usage";
 import { createThrottle } from "./throttle";
@@ -28,19 +28,21 @@ export async function generateText(params: {
 }): Promise<string> {
   if (!hasAI()) {
     throw new AgentDependencyError(
-      "LLM generation is not configured. Add a Groq API key as GROQ_API_KEY."
+      "LLM generation is not configured. Use Vercel AI Gateway or configure GROQ_API_KEY."
     );
   }
 
   // Reserve against the application guardrails before making a provider call.
-  await reserveCall("groq");
+  const provider = aiProvider();
+  const label = PROVIDER_LABELS[provider];
+  await reserveCall(provider);
 
   try {
     // Serialize through the Groq throttle to reduce rate bursts; a call that
     // still fails uses the AI SDK's bounded retries.
     const { text } = await throttleGroq(() =>
       aiGenerateText({
-        model: groq(env.GROQ_MODEL),
+        model: provider === "groq" ? groq(env.GROQ_MODEL) : env.AI_MODEL,
         maxOutputTokens: params.maxTokens ?? 4096,
         system: params.system,
         prompt: params.prompt,
@@ -57,22 +59,22 @@ export async function generateText(params: {
     const message = err instanceof Error ? err.message : String(err);
     if (/abort|timed?\s*out|timeout/i.test(message)) {
       throw new AgentDependencyError(
-        `Groq did not respond within ${Math.round(env.GROQ_TIMEOUT_MS / 1000)} seconds. Retry the run shortly.`
+        `${label} did not respond within ${Math.round(env.GROQ_TIMEOUT_MS / 1000)} seconds. Retry the run shortly.`
       );
     }
     if (/rate.?limit|429|too many requests/i.test(message)) {
       throw new AgentDependencyError(
-        "Groq is temporarily rate-limited. No changes were lost — " +
+        `${label} is temporarily rate-limited. No changes were lost — ` +
           "wait a minute and run again. The daily/weekly/monthly budget caps in Settings keep " +
           "application calls within the configured guardrails."
       );
     }
     if (/api key|unauthorized|401|invalid.*key/i.test(message)) {
       throw new AgentDependencyError(
-        "Groq rejected the API key. Check that GROQ_API_KEY is valid."
+        `${label} rejected authentication. Check the provider credentials or Vercel OIDC configuration.`
       );
     }
-    throw new AgentDependencyError(`Groq call failed: ${message}`);
+    throw new AgentDependencyError(`${label} call failed: ${message}`);
   }
 }
 

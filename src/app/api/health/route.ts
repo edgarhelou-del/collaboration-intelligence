@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { env, hasAI, hasSearch } from "@/lib/env";
+import { env, hasGateway, hasSearch, aiProvider } from "@/lib/env";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
@@ -18,7 +18,9 @@ export async function GET() {
     status: database ? "ok" : "degraded",
     database,
     providers: {
-      groq: hasAI(),
+      groq: Boolean(env.GROQ_API_KEY),
+      gateway: hasGateway(),
+      activeAI: aiProvider(),
       tavily: hasSearch(),
     },
     cronProtected: Boolean(env.CRON_SECRET),

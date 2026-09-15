@@ -1,4 +1,4 @@
-import { hasAI, hasSearch, env } from "@/lib/env";
+import { hasAI, hasSearch, env, aiProvider, PROVIDER_LABELS } from "@/lib/env";
 import { prisma } from "@/lib/prisma";
 import { getAllUsage, type ProviderUsage, type WindowUsage } from "@/lib/usage";
 
@@ -27,7 +27,7 @@ export default async function SettingsPage() {
         <p className="kicker">Configuration</p>
         <h1 className="mt-1 font-serif text-2xl font-semibold text-ink">Settings</h1>
         <p className="mt-2 max-w-2xl text-sm text-muted">
-          Groq powers the LLM work and Tavily powers web search. Local usage guardrails pause new calls
+          {PROVIDER_LABELS[aiProvider()]} powers generation and Tavily powers web search. Local usage guardrails pause new calls
           at the configured thresholds; provider-side billing and spend controls remain the source of truth.
         </p>
       </header>
@@ -37,28 +37,28 @@ export default async function SettingsPage() {
         <ul className="panel divide-y divide-line">
           <StatusRow label="Database (PostgreSQL)" ok={dbConnected} okText="Connected" badText="Not connected" />
           <StatusRow
-            label="LLM (Groq)"
+            label={PROVIDER_LABELS[aiProvider()]}
             ok={hasAI()}
-            okText={`Configured — model ${env.GROQ_MODEL}`}
-            badText="Not configured — add a free GROQ_API_KEY from console.groq.com"
+            okText={`Configured — model ${aiProvider() === "groq" ? env.GROQ_MODEL : env.AI_MODEL}`}
+            badText="Not configured — connect AI Gateway or add GROQ_API_KEY"
           />
           <StatusRow
             label="Web research (Tavily)"
             ok={hasSearch()}
-            okText="Configured — free web search enabled"
+            okText="Configured — web search enabled"
             badText="Not configured — add a free TAVILY_API_KEY from tavily.com"
           />
           <StatusRow
             label="Cron protection (CRON_SECRET)"
             ok={Boolean(env.CRON_SECRET)}
             okText="Set — /api/agents/* require it"
-            badText="Not set — /api/agents/* are open (fine for local dev)"
+            badText="Not set — automated agent endpoints are disabled in production"
           />
         </ul>
       </section>
 
       <section className="mt-8">
-        <p className="label mb-3">Free-tier usage &amp; limits</p>
+        <p className="label mb-3">Provider usage &amp; limits</p>
         {usage.length === 0 ? (
           <p className="text-sm text-muted">Usage data is unavailable right now.</p>
         ) : (

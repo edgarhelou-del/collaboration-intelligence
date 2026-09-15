@@ -12,6 +12,7 @@ import "server-only";
  * quotas, billing and spend controls remain authoritative.
  */
 export const env = {
+  AI_MODEL: process.env.AI_MODEL || "openai/gpt-4.1-mini",
   // Groq model id (see console.groq.com/docs/models). Override with GROQ_MODEL.
   GROQ_MODEL: process.env.GROQ_MODEL || "llama-3.3-70b-versatile",
   // Groq API key. Required for any LLM work (extraction, content).
@@ -26,7 +27,7 @@ export const env = {
   RESEARCH_MAX_QUERIES: parsePositiveInt(process.env.RESEARCH_MAX_QUERIES, 4),
 };
 
-export type ProviderKey = "groq" | "tavily";
+export type ProviderKey = "groq" | "tavily" | "gateway";
 
 export type WindowLimits = { daily: number; weekly: number; monthly: number };
 
@@ -40,6 +41,11 @@ export type WindowLimits = { daily: number; weekly: number; monthly: number };
  * account, model and plan, so configure provider-side spend limits as well.
  */
 export const USAGE_LIMITS: Record<ProviderKey, WindowLimits> = {
+  gateway: {
+    daily: parsePositiveInt(process.env.AI_DAILY_CALL_LIMIT, 100),
+    weekly: parsePositiveInt(process.env.AI_WEEKLY_CALL_LIMIT, 500),
+    monthly: parsePositiveInt(process.env.AI_MONTHLY_CALL_LIMIT, 1500),
+  },
   groq: {
     daily: parsePositiveInt(process.env.GROQ_DAILY_LIMIT, 500),
     weekly: parsePositiveInt(process.env.GROQ_WEEKLY_LIMIT, 3000),
@@ -53,6 +59,7 @@ export const USAGE_LIMITS: Record<ProviderKey, WindowLimits> = {
 };
 
 export const PROVIDER_LABELS: Record<ProviderKey, string> = {
+  gateway: "AI Gateway (LLM)",
   groq: "Groq (LLM)",
   tavily: "Tavily (web search)",
 };
@@ -65,7 +72,15 @@ function parsePositiveInt(value: string | undefined, fallback: number): number {
 
 /** LLM generation is available when a Groq API key is configured. */
 export function hasAI() {
-  return Boolean(env.GROQ_API_KEY);
+  return Boolean(env.GROQ_API_KEY) || hasGateway();
+}
+
+export function hasGateway() {
+  return Boolean(process.env.AI_GATEWAY_API_KEY || process.env.VERCEL_OIDC_TOKEN || process.env.VERCEL === "1");
+}
+
+export function aiProvider(): "groq" | "gateway" {
+  return env.GROQ_API_KEY ? "groq" : "gateway";
 }
 
 /** Web research is available when a Tavily API key is configured. */

@@ -1,6 +1,6 @@
 import "server-only";
 import { prisma } from "./prisma";
-import { USAGE_LIMITS, PROVIDER_LABELS, type ProviderKey } from "./env";
+import { USAGE_LIMITS, PROVIDER_LABELS, aiProvider, type ProviderKey } from "./env";
 import { AgentDependencyError } from "./agents/errors";
 
 /** UTC calendar day as "YYYY-MM-DD" (lexicographically comparable). */
@@ -72,7 +72,7 @@ export async function getProviderUsage(provider: ProviderKey): Promise<ProviderU
 
 /** All providers' usage, for the settings dashboard. */
 export async function getAllUsage(): Promise<ProviderUsage[]> {
-  const providers: ProviderKey[] = ["groq", "tavily"];
+  const providers: ProviderKey[] = [aiProvider(), "tavily"];
   return Promise.all(providers.map(getProviderUsage));
 }
 
@@ -88,11 +88,13 @@ export async function reserveCall(provider: ProviderKey): Promise<void> {
   const c = await windowCounts(provider);
   const l = USAGE_LIMITS[provider];
   const label = PROVIDER_LABELS[provider];
+  const envPrefix = provider === "gateway" ? "AI" : provider.toUpperCase();
+  const envSuffix = provider === "gateway" ? "CALL_LIMIT" : "LIMIT";
 
   const windows: { name: string; count: number; limit: number; envVar: string }[] = [
-    { name: "daily", count: c.daily, limit: l.daily, envVar: `${provider.toUpperCase()}_DAILY_LIMIT` },
-    { name: "weekly", count: c.weekly, limit: l.weekly, envVar: `${provider.toUpperCase()}_WEEKLY_LIMIT` },
-    { name: "monthly", count: c.monthly, limit: l.monthly, envVar: `${provider.toUpperCase()}_MONTHLY_LIMIT` },
+    { name: "daily", count: c.daily, limit: l.daily, envVar: `${envPrefix}_DAILY_${envSuffix}` },
+    { name: "weekly", count: c.weekly, limit: l.weekly, envVar: `${envPrefix}_WEEKLY_${envSuffix}` },
+    { name: "monthly", count: c.monthly, limit: l.monthly, envVar: `${envPrefix}_MONTHLY_${envSuffix}` },
   ];
 
   for (const w of windows) {
