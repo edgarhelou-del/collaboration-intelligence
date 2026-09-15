@@ -27,7 +27,7 @@ export default async function SettingsPage() {
         <p className="kicker">Configuration</p>
         <h1 className="mt-1 font-serif text-2xl font-semibold text-ink">Settings</h1>
         <p className="mt-2 max-w-2xl text-sm text-muted">
-          {PROVIDER_LABELS[aiProvider()]} powers generation and Tavily powers web search. Local usage guardrails pause new calls
+          {PROVIDER_LABELS[aiProvider()]} powers generation. Web search uses Tavily with AI Gateway / Sonar as a quota fallback. Local usage guardrails pause new calls
           at the configured thresholds; provider-side billing and spend controls remain the source of truth.
         </p>
       </header>
@@ -43,7 +43,7 @@ export default async function SettingsPage() {
             badText="Not configured — connect AI Gateway or add GROQ_API_KEY"
           />
           <StatusRow
-            label="Web research (Tavily)"
+            label="Web research (Tavily / Sonar)"
             ok={hasSearch()}
             okText="Configured — web search enabled"
             badText="Not configured — add a free TAVILY_API_KEY from tavily.com"

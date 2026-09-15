@@ -12,7 +12,7 @@ const groq = createGroq({ apiKey: env.GROQ_API_KEY });
 
 // Keep a small gap between LLM calls to avoid provider rate bursts. This is
 // independent from Tavily's throttle and can be tuned with GROQ_MIN_SPACING_MS.
-const throttleGroq = createThrottle(
+export const throttleGroq = createThrottle(
   Number.parseInt(process.env.GROQ_MIN_SPACING_MS || "1200", 10) || 1200
 );
 

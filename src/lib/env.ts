@@ -85,5 +85,5 @@ export function aiProvider(): "groq" | "gateway" {
 
 /** Web research is available when a Tavily API key is configured. */
 export function hasSearch() {
-  return Boolean(env.TAVILY_API_KEY);
+  return Boolean(env.TAVILY_API_KEY) || hasGateway();
 }

@@ -1,5 +1,7 @@
 import "server-only";
-import { env, hasSearch } from "./env";
+import { env, hasSearch, hasGateway } from "./env";
+import { generateText as aiGenerateText } from "ai";
+import { extractJson, throttleGroq } from "./ai";
 import { AgentDependencyError } from "./agents/errors";
 import { reserveCall } from "./usage";
 import { createThrottle } from "./throttle";
@@ -43,6 +45,8 @@ export async function webSearch(
     );
   }
 
+  if (!env.TAVILY_API_KEY) return gatewaySearch(query, opts);
+
   // Reserve against the application guardrails before making a provider call.
   await reserveCall("tavily");
 
@@ -71,6 +75,12 @@ export async function webSearch(
     );
 
     if (!res.ok) {
+      // Tavily reports exhausted plan quotas as 432 (in addition to 429).
+      // Switch services without increasing or bypassing the Tavily quota.
+      if ([429, 432, 433].includes(res.status) && hasGateway()) {
+        await res.body?.cancel();
+        return gatewaySearch(query, opts);
+      }
       const detail = await res.text().catch(() => "");
       if (res.status === 429) {
         throw new AgentDependencyError(
@@ -110,4 +120,32 @@ export async function webSearch(
     }));
 
   return results.slice(0, maxResults);
+}
+
+async function gatewaySearch(
+  query: string,
+  opts?: { maxResults?: number; includeDomains?: string[] }
+): Promise<SearchResult[]> {
+  await reserveCall("gateway");
+  const result = await throttleGroq(() => aiGenerateText({
+    model: "perplexity/sonar",
+    maxOutputTokens: 2048,
+    maxRetries: 2,
+    abortSignal: AbortSignal.timeout(45_000),
+    system: "Search the live web. Return only factual source-specific summaries backed by your citations. Never invent people, quotes or URLs. Return JSON only.",
+    prompt: `Search: ${query}\nReturn a JSON array of up to ${opts?.maxResults ?? 8} results with title, url, content (a short source-specific paraphrase, not a quotation), and publishedDate (ISO date or null). ${opts?.includeDomains?.length ? `Only use these domains: ${opts.includeDomains.join(", ")}.` : ""}`,
+  }));
+  const cited = new Set(result.sources.filter(s => s.sourceType === "url").map(s => s.url));
+  const parsed: unknown = extractJson(result.text);
+  if (!Array.isArray(parsed)) throw new AgentDependencyError("Search returned invalid structured results.");
+  // Accept only URLs independently attached by the search provider. A URL
+  // merely written in generated JSON is not enough to count as a source.
+  return parsed.filter((r): r is SearchResult => {
+    if (!r || typeof r.url !== "string" || typeof r.content !== "string" || typeof r.title !== "string" || !cited.has(r.url)) return false;
+    if (!opts?.includeDomains?.length) return true;
+    try {
+      const host = new URL(r.url).hostname;
+      return opts.includeDomains.some(d => host === d || host.endsWith(`.${d}`));
+    } catch { return false; }
+  }).map(r => ({title: r.title, url: r.url, content: `Search-provider paraphrase (not a verbatim quote): ${r.content}`, publishedDate: r.publishedDate || undefined})).slice(0, opts?.maxResults ?? 8);
 }

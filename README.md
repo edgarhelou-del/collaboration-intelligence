@@ -4,7 +4,8 @@ Deployment compatibility: generation uses Groq when `GROQ_API_KEY` is set;
 otherwise it uses the existing Vercel AI Gateway authentication (OIDC), with
 `AI_MODEL=openai/gpt-4.1-mini` by default. No new provider key is required on
 Vercel. Local Gateway use requires `AI_GATEWAY_API_KEY`. Tavily continues to
-provide live search. Gateway calls have separate daily/weekly/monthly guardrails
+provide live search, with citation-checked Sonar via Gateway as a fallback when
+Tavily is missing or its provider quota is exhausted. Gateway calls have separate daily/weekly/monthly guardrails
 (`AI_DAILY_CALL_LIMIT`, `AI_WEEKLY_CALL_LIMIT`, `AI_MONTHLY_CALL_LIMIT`).
 
 An intelligence engine, not a content generator. Three agents scan how human
