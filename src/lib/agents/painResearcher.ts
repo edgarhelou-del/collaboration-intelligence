@@ -285,7 +285,7 @@ export async function runPainResearcher(agentRunId: string): Promise<{
 }> {
   if (!hasSearch()) {
     throw new AgentDependencyError(
-      "Web search is unavailable (Tavily is not configured — add TAVILY_API_KEY). The Pain Researcher requires live web search and will not fabricate signals without it."
+      "Web search is unavailable (configure GROQ_API_KEY for free mode). The Pain Researcher requires live web search and will not fabricate signals without it."
     );
   }
 
@@ -296,12 +296,11 @@ export async function runPainResearcher(agentRunId: string): Promise<{
   // randomly re-sampling a few. Counting includes the current run row, which
   // simply gives a consistent +1 advance per run.
   const priorRuns = await prisma.agentRun.count({ where: { agent: "PAIN_RESEARCH" } });
-  const queries = pickQueries(env.RESEARCH_MAX_QUERIES, priorRuns);
+  const queries = pickQueries((env.FREE_ONLY ? Math.min(2, env.RESEARCH_MAX_QUERIES) : env.RESEARCH_MAX_QUERIES), priorRuns);
   const allResults: (SearchResult & { query: string })[] = [];
 
-  // Each search is a Tavily REST call (its own free tier, no LLM credit). We
-  // launch them together; Tavily's throttle spaces the calls so the free tier
-  // isn't bursted. allSettled keeps one failed query from aborting the rest;
+  // The search provider meters and spaces its calls. allSettled keeps one
+  // failed query from aborting the rest;
   // failures are recorded as warnings.
   const searches = await Promise.allSettled(
     queries.map((query) => webSearch(query, { maxResults: 8 }))

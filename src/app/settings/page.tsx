@@ -27,8 +27,7 @@ export default async function SettingsPage() {
         <p className="kicker">Configuration</p>
         <h1 className="mt-1 font-serif text-2xl font-semibold text-ink">Settings</h1>
         <p className="mt-2 max-w-2xl text-sm text-muted">
-          {PROVIDER_LABELS[aiProvider()]} powers generation. Web search uses Tavily with AI Gateway / Sonar as a quota fallback. Local usage guardrails pause new calls
-          at the configured thresholds; provider-side billing and spend controls remain the source of truth.
+          {env.FREE_ONLY ? "Free mode uses Groq for generation and Compound for web search, with no paid fallback." : "Provider mode uses the configured services."} Up to {env.ARTICLES_DAILY_LIMIT} article excerpts can be admitted each UTC day. These are source excerpts, not 100 generated posts or guaranteed findings. Provider token and rate limits may pause research earlier.
         </p>
       </header>
 
@@ -40,13 +39,13 @@ export default async function SettingsPage() {
             label={PROVIDER_LABELS[aiProvider()]}
             ok={hasAI()}
             okText={`Configured — model ${aiProvider() === "groq" ? env.GROQ_MODEL : env.AI_MODEL}`}
-            badText="Not configured — connect AI Gateway or add GROQ_API_KEY"
+            badText="Not configured — add GROQ_API_KEY from a Groq Free account"
           />
           <StatusRow
-            label="Web research (Tavily / Sonar)"
+            label={env.FREE_ONLY || env.GROQ_API_KEY ? "Web research (Groq Compound)" : "Web research (Tavily / Sonar)"}
             ok={hasSearch()}
             okText="Configured — web search enabled"
-            badText="Not configured — add a free TAVILY_API_KEY from tavily.com"
+            badText="Not configured — add GROQ_API_KEY"
           />
           <StatusRow
             label="Cron protection (CRON_SECRET)"

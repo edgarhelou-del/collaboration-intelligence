@@ -5,6 +5,7 @@ import { extractJson, throttleGateway } from "./ai";
 import { AgentDependencyError } from "./agents/errors";
 import { reserveCall } from "./usage";
 import { createThrottle } from "./throttle";
+import { groqSearch } from "./groq-search";
 
 export type SearchResult = {
   title: string;
@@ -39,6 +40,8 @@ export async function webSearch(
   query: string,
   opts?: { maxResults?: number; includeDomains?: string[] }
 ): Promise<SearchResult[]> {
+  // Free mode never calls Tavily or AI Gateway, even if old keys are present.
+  if (env.FREE_ONLY || env.GROQ_API_KEY) return groqSearch(query, opts);
   if (!hasSearch()) {
     throw new AgentDependencyError(
       "Web search is not configured. Add a Tavily API key as TAVILY_API_KEY."

@@ -1,6 +1,6 @@
 import "server-only";
 import { prisma } from "./prisma";
-import { USAGE_LIMITS, PROVIDER_LABELS, aiProvider, type ProviderKey } from "./env";
+import { env, USAGE_LIMITS, PROVIDER_LABELS, aiProvider, type ProviderKey } from "./env";
 import { AgentDependencyError } from "./agents/errors";
 
 /** UTC calendar day as "YYYY-MM-DD" (lexicographically comparable). */
@@ -72,8 +72,36 @@ export async function getProviderUsage(provider: ProviderKey): Promise<ProviderU
 
 /** All providers' usage, for the settings dashboard. */
 export async function getAllUsage(): Promise<ProviderUsage[]> {
-  const providers: ProviderKey[] = [aiProvider(), "tavily"];
+  const providers: ProviderKey[] = env.FREE_ONLY || env.GROQ_API_KEY
+    ? [aiProvider(), "groq_search", "articles"]
+    : [aiProvider(), "tavily"];
   return Promise.all(providers.map(getProviderUsage));
+}
+
+/** Lock the daily meter across processes; return only the slots still available.
+ * Reservations survive downstream failures so retries cannot exceed the cap.
+ */
+export async function reserveArticleSlots(requested: number): Promise<number> {
+  if (!Number.isSafeInteger(requested) || requested < 1) return 0;
+  const day = usageKey("articles");
+  return prisma.$transaction(async (tx) => {
+    await tx.$executeRaw`INSERT INTO "ai_usage" ("day", "count", "updatedAt")
+      VALUES (${day}, 0, NOW()) ON CONFLICT ("day") DO NOTHING`;
+    const [row] = await tx.$queryRaw<{ count: number }[]>`
+      SELECT "count" FROM "ai_usage" WHERE "day" = ${day} FOR UPDATE`;
+    const granted = Math.min(requested, Math.max(0, env.ARTICLES_DAILY_LIMIT - row.count));
+    if (granted > 0) await tx.aiUsage.update({
+      where: { day }, data: { count: { increment: granted } },
+    });
+    return granted;
+  });
+}
+
+export async function assertArticleCapacity(): Promise<void> {
+  const usage = await getProviderUsage("articles");
+  if (usage.daily.count >= usage.daily.limit) throw new AgentDependencyError(
+    `Daily article limit reached (${usage.daily.limit}). Research resumes after 00:00 UTC.`
+  );
 }
 
 /**

@@ -308,7 +308,7 @@ export async function runBioAdaptability(agentRunId: string): Promise<{
 }> {
   if (!hasSearch()) {
     throw new AgentDependencyError(
-      "Web search is unavailable (Tavily is not configured — add TAVILY_API_KEY). The Bioadaptability Researcher requires live web search and will not fabricate findings without it."
+      "Web search is unavailable (configure GROQ_API_KEY for free mode). The Bioadaptability Researcher requires live web search and will not fabricate findings without it."
     );
   }
 
@@ -316,11 +316,10 @@ export async function runBioAdaptability(agentRunId: string): Promise<{
   // Advance deterministically by prior Bio-run count so coverage rotates evenly
   // across runs instead of randomly re-sampling the same phrases.
   const priorRuns = await prisma.agentRun.count({ where: { agent: "BIO_ADAPTABILITY" } });
-  const queries = pickQueries(priorRuns).slice(0, env.RESEARCH_MAX_QUERIES);
+  const queries = pickQueries(priorRuns).slice(0, (env.FREE_ONLY ? Math.min(2, env.RESEARCH_MAX_QUERIES) : env.RESEARCH_MAX_QUERIES));
   const allResults: (SearchResult & { query: string })[] = [];
 
-  // Run searches together (independent Tavily REST calls, no LLM credit); the
-  // Tavily throttle spaces them so the free tier isn't bursted.
+  // Search calls are independently metered and spaced by the provider wrapper.
   const searches = await Promise.allSettled(queries.map((query) => webSearch(query, { maxResults: 8 })));
   searches.forEach((settled, i) => {
     const query = queries[i];

@@ -13,7 +13,7 @@ const groq = createGroq({ apiKey: env.GROQ_API_KEY });
 // Keep a small gap between LLM calls to avoid provider rate bursts. This is
 // independent from Tavily's throttle and can be tuned with GROQ_MIN_SPACING_MS.
 const throttleGroq = createThrottle(
-  Number.parseInt(process.env.GROQ_MIN_SPACING_MS || "1200", 10) || 1200
+  Math.max(env.FREE_ONLY ? 60_000 : 1200, Number.parseInt(process.env.GROQ_MIN_SPACING_MS || "1200", 10) || 1200)
 );
 
 // Gateway free-tier requests need a slower shared queue across generation
@@ -34,7 +34,7 @@ export async function generateText(params: {
 }): Promise<string> {
   if (!hasAI()) {
     throw new AgentDependencyError(
-      "LLM generation is not configured. Use Vercel AI Gateway or configure GROQ_API_KEY."
+      "Configure GROQ_API_KEY from a Groq Free account to enable generation."
     );
   }
 
@@ -49,10 +49,12 @@ export async function generateText(params: {
     const { text } = await (provider === "groq" ? throttleGroq : throttleGateway)(() =>
       aiGenerateText({
         model: provider === "groq" ? groq(env.GROQ_MODEL) : env.AI_MODEL,
-        maxOutputTokens: params.maxTokens ?? 4096,
+        maxOutputTokens: env.FREE_ONLY ? Math.min(params.maxTokens ?? 3072, 3072) : params.maxTokens ?? 4096,
         system: params.system,
         prompt: params.prompt,
-        maxRetries: provider === "groq" ? 3 : 0,
+        maxRetries: env.FREE_ONLY ? 0 : provider === "groq" ? 3 : 0,
+        ...(provider === "groq" && env.GROQ_MODEL.startsWith("openai/gpt-oss")
+          ? { providerOptions: { groq: { reasoningEffort: "low" } } } : {}),
         abortSignal: AbortSignal.timeout(env.GROQ_TIMEOUT_MS),
       })
     );
