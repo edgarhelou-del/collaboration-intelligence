@@ -82,7 +82,7 @@ export async function pollAgentRuns(
   await reconcileStaleRuns();
   const since = new Date(baselineISO);
   const runs = await prisma.agentRun.findMany({
-    where: { agent: { in: agents }, startedAt: { gte: since } },
+    where: { agent: { in: agents }, startedAt: { gte: since }, NOT: { id: { startsWith: "observatory:" } } },
     orderBy: { startedAt: "desc" },
   });
 

@@ -1,5 +1,10 @@
 # KOLAB — Collaboration Intelligence Radar
 
+Externally curated findings, drafts and reports can be received by authenticated
+`/radar/api/observatory/*` endpoints and reviewed privately at `/radar/observatory`.
+See [integration and deployment gates](docs/observatory-integration.md). This does
+not enable or migrate the previous ChatGPT Sites automation by itself.
+
 Default deployment: **Groq Free only**, using `groq/compound-mini` for live web
 search and `openai/gpt-oss-20b` for extraction. Set `GROQ_API_KEY` from an account
 that remains on the **Free** plan. `FREE_ONLY=true` is the default: existing

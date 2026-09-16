@@ -212,11 +212,11 @@ export async function getBioFindingsSince(date: Date) {
 }
 
 export async function getRecentAgentRuns(take = 20) {
-  return prisma.agentRun.findMany({ orderBy: { startedAt: "desc" }, take });
+  return prisma.agentRun.findMany({ where: { NOT: { id: { startsWith: "observatory:" } } }, orderBy: { startedAt: "desc" }, take });
 }
 
 export async function getAgentRunsSince(date: Date) {
-  return prisma.agentRun.findMany({ where: { startedAt: { gte: date } }, orderBy: { startedAt: "desc" } });
+  return prisma.agentRun.findMany({ where: { startedAt: { gte: date }, NOT: { id: { startsWith: "observatory:" } } }, orderBy: { startedAt: "desc" } });
 }
 
 export async function getSignalsSince(date: Date) {
