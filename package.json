@@ -17,7 +17,7 @@
     "postinstall": "prisma generate",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
-    "test": "node --conditions=react-server --import tsx --test tests/*.test.ts"
+    "test": "node --conditions=react-server --import tsx --test --test-concurrency=1 tests/*.test.ts"
   },
   "dependencies": {
     "@ai-sdk/groq": "4.0.41",
